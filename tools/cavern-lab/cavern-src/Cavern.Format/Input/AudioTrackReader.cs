@@ -1,0 +1,125 @@
+﻿using Cavern.Format.Common;
+using Cavern.Format.Common.Metadata;
+using Cavern.Format.Container;
+using Cavern.Format.Decoders;
+using Cavern.Format.Renderers;
+using Cavern.Format.Utilities;
+
+namespace Cavern.Format {
+    /// <summary>
+    /// Reads an audio track from a container.
+    /// </summary>
+    public class AudioTrackReader : AudioReader, IMetadataSupplier {
+        /// <summary>
+        /// Get the container that contains this track.
+        /// </summary>
+        public ContainerReader Source => track.Source;
+
+        /// <inheritdoc/>
+        public override long Position {
+            get => decoder.Position;
+            set => Source.Seek(value / (double)SampleRate);
+        }
+
+        /// <summary>
+        /// The referenced track from a container.
+        /// </summary>
+        public readonly Track track;
+
+        /// <summary>
+        /// Decoder based on the <see cref="Codec"/> of the selected stream.
+        /// </summary>
+        Decoder decoder;
+
+        /// <summary>
+        /// If this track reader was created without keeping the reference to the container,
+        /// the container is disposed with this track.
+        /// </summary>
+        readonly bool disposeSource;
+
+        /// <summary>
+        /// Reads an audio track from a container.
+        /// </summary>
+        public AudioTrackReader(Track track) : base(track.Source.reader) => this.track = track;
+
+        /// <summary>
+        /// Reads an audio track from a container and disposes the container after the reading was done.
+        /// </summary>
+        internal AudioTrackReader(Track track, bool disposeSource) : this(track) => this.disposeSource = disposeSource;
+
+        /// <inheritdoc/>
+        public override void ReadHeader() {
+            TrackExtraAudio info = track.Extra as TrackExtraAudio;
+            ChannelCount = info.ChannelCount;
+            Length = track.Length == 0 ?
+                (long)(info.SampleRate * track.Source.Duration) :
+                (long)track.Length;
+            SampleRate = (int)info.SampleRate;
+            Bits = info.Bits;
+
+            switch (track.Format) {
+                case Codec.TrueHD:
+                    decoder = new MeridianLosslessPackingDecoder(new BlockBuffer<byte>(track.ReadNextBlock));
+                    break;
+                case Codec.AC3:
+                case Codec.EnhancedAC3:
+                    decoder = new EnhancedAC3Decoder(new BlockBuffer<byte>(track.ReadNextBlock));
+                    break;
+                case Codec.PCM_LE:
+                case Codec.PCM_Float:
+                    decoder = new RIFFWaveDecoder(new BlockBuffer<byte>(track.ReadNextBlock),
+                        ChannelCount, Length, SampleRate, Bits);
+                    break;
+                default:
+                    decoder = new DummyDecoder(track.Format, ChannelCount, Length, SampleRate);
+                    break;
+            }
+        }
+
+        /// <inheritdoc/>
+        public override Renderer GetRenderer() {
+            if (decoder == null) {
+                ReadHeader();
+            }
+            if (decoder is MeridianLosslessPackingDecoder mlp) {
+                return new MeridianLosslessPackingRenderer(mlp);
+            }
+            if (decoder is EnhancedAC3Decoder eac3) {
+                return new EnhancedAC3Renderer(eac3);
+            }
+            if (decoder is RIFFWaveDecoder wav) {
+                return new RIFFWaveRenderer(wav);
+            }
+            if (decoder is DummyDecoder dummy) {
+                return new DummyRenderer(dummy);
+            }
+            return null;
+        }
+
+        /// <inheritdoc/>
+        public override void ReadBlock(float[] samples, long from, long to) => decoder.DecodeBlock(samples, from, to - from);
+
+        /// <inheritdoc/>
+        public override void Reset() {
+            Source.Seek(0);
+            ReadHeader();
+        }
+
+        /// <summary>
+        /// Gets the metadata for the underlying codec in a human-readable format.
+        /// </summary>
+        public ReadableMetadata GetMetadata() {
+            if (decoder == null) {
+                ReadHeader();
+            }
+            return decoder is IMetadataSupplier meta ? meta.GetMetadata() : null;
+        }
+
+        /// <inheritdoc/>
+        public override void Dispose() {
+            if (disposeSource && reader != null) {
+                reader.Close();
+            }
+        }
+    }
+}

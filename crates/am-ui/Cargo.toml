@@ -1,0 +1,24 @@
+[package]
+name = "am-ui"
+description = "A native Apple Music client for the GNOME desktop"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+adw.workspace = true
+amui = { path = "../amui" }
+async-channel.workspace = true
+gtk.workspace = true
+image.workspace = true
+libc.workspace = true
+lru.workspace = true
+mpris-server.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[build-dependencies]
+glib-build-tools = "0.22"
+
+[dev-dependencies]
+tempfile.workspace = true

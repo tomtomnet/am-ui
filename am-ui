@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Launch am-ui. Run it from a terminal or a launcher inside your desktop session.
+#   ./am-ui                 the player (sign in once with its Sign In button)
+#   ./am-ui --demo          the window with invented music and a player that plays nothing (no account)
+#   ./am-ui cli <command>   the engine's command line, e.g. ./am-ui cli doctor
+# ./setup.sh builds both programs (target/release/am-ui and target/release/amui).
+set -euo pipefail
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
+cd "$here"
+if [ "${1:-}" = cli ]; then
+    shift
+    program="$here/target/release/amui"
+else
+    program="$here/target/release/am-ui"
+    # the earlier application's name for the same thing
+    if [ "${1:-}" = --fake ]; then shift; set -- --demo "$@"; fi
+fi
+if [ ! -x "$program" ]; then
+    printf 'am-ui: %s is not built yet: run ./setup.sh\n' "${program#"$here/"}" >&2
+    exit 1
+fi
+# A graphics card that is installed but not driven by its own driver (for example one handed to a
+# virtual machine) leaves a Vulkan driver behind that stalls every Vulkan start for seconds, and GTK
+# draws with Vulkan: hide that driver from it.
+if [ -z "${VK_LOADER_DRIVERS_DISABLE:-}" ]; then
+    for device in /sys/bus/pci/devices/*; do
+        [ "$(cat "$device/vendor" 2>/dev/null)" = 0x10de ] || continue
+        case "$(cat "$device/class" 2>/dev/null)" in 0x03*) ;; *) continue ;; esac
+        case "$(basename -- "$(readlink "$device/driver" 2>/dev/null || true)")" in
+            nvidia|nouveau) ;;
+            *) export VK_LOADER_DRIVERS_DISABLE='*nvidia*'; break ;;
+        esac
+    done
+fi
+exec "$program" "$@"

@@ -1,0 +1,48 @@
+# Private runtime data of the player: decrypted media, PCM renders, artwork, logs, state.
+/var/
+# Cargo's build tree of the engine and the application.
+/target/
+# Leftovers of the earlier toolkit study (browser profiles, SDKs).
+/.cache/
+/.sdk/
+__pycache__/
+*.pyc
+*.qmlc
+*.jsc
+*.bak
+*.bak-*
+*.orig
+/*.png
+/.claude/
+# The demonstration's generated covers (crates/am-ui/demo/gen_demo.py makes them again).
+/crates/am-ui/demo/covers/
+# Private working notes (unscrubbed originals, ledger): never pushed.
+/notes-local/
+
+# workspace/: only the engine tool sources are tracked. Everything else there is this machine's
+# private state (the saved session with its token, scratch, reports) or a build product.
+/workspace/*
+!/workspace/README.md
+!/workspace/tools/
+/workspace/tools/*
+!/workspace/tools/music-web-probe.py
+!/workspace/tools/music_session.py
+!/workspace/tools/music-web-login.py
+!/workspace/tools/music_browser.py
+!/workspace/tools/downmix.py
+!/workspace/pipewire/
+/workspace/pipewire/*
+!/workspace/pipewire/applemusic-downmix.conf
+!/workspace/pipewire/applemusic-downmix.service
+!/workspace/pipewire/atmos-916-downmix.conf
+!/workspace/builds/
+/workspace/builds/*
+!/workspace/builds/music-downloader/
+/workspace/builds/music-downloader/*
+!/workspace/builds/music-downloader/amdl-linux/
+/workspace/builds/music-downloader/amdl-linux/*
+!/workspace/builds/music-downloader/amdl-linux/Cargo.toml
+!/workspace/builds/music-downloader/amdl-linux/Cargo.lock
+!/workspace/builds/music-downloader/amdl-linux/src/
+/workspace/builds/music-downloader/amdl-linux/src/*
+!/workspace/builds/music-downloader/amdl-linux/src/main.rs

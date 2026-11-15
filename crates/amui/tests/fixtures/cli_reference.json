@@ -1,0 +1,3357 @@
+{
+ "about": "What the Python command line (amui/cli_library.py, amui/cli_pipeline.py; the helpers of both, the probe module's track_id and the doctor's report lines) printed for these synthetic answers and states when the Rust port was written. Made by tests/reference/cli_reference.py; the tests of src/cli/reference.rs hold the port to it.",
+ "answers": {
+  "https://amp-api.music.apple.com/v1/me/storefront": {
+   "data": [
+    {
+     "id": "zz",
+     "type": "storefronts"
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/me/library/albums?limit=100": {
+   "data": [
+    {
+     "id": "l.AbCdEf1",
+     "type": "library-albums",
+     "attributes": {
+      "name": "Album A",
+      "artistName": "Artist A",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "trackCount": 12
+     }
+    },
+    {
+     "id": "l.AbCdEf2",
+     "type": "library-albums",
+     "attributes": {
+      "name": "A name that goes on for much longer than the forty-eight characters a column has",
+      "artistName": "An artist whose name is longer than its column",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "trackCount": 0
+     }
+    },
+    {
+     "id": "l.AbCdEf3",
+     "type": "library-albums",
+     "attributes": {
+      "name": "Álbum\nÑ",
+      "artistName": "Ártist Ö",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      }
+     }
+    }
+   ],
+   "next": "/v1/me/library/albums?offset=100",
+   "meta": {
+    "total": 257
+   }
+  },
+  "https://amp-api.music.apple.com/v1/me/library/albums?limit=2&offset=100": {
+   "data": [
+    {
+     "id": "l.AbCdEf4",
+     "type": "library-albums",
+     "attributes": {
+      "name": "Album D",
+      "artistName": "Artist A",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "trackCount": 1
+     }
+    }
+   ],
+   "meta": {
+    "total": 257
+   }
+  },
+  "https://amp-api.music.apple.com/v1/me/library/albums?limit=5&offset=300": {
+   "data": []
+  },
+  "https://amp-api.music.apple.com/v1/me/library/playlists?extend[library-playlists]=tags&limit=100": {
+   "data": [
+    {
+     "id": "p.AbCdEf1",
+     "type": "library-playlists",
+     "attributes": {
+      "name": "List A",
+      "canEdit": true
+     }
+    },
+    {
+     "id": "p.AbCdEf2",
+     "type": "library-playlists",
+     "attributes": {
+      "name": "Favourite Songs",
+      "canEdit": false,
+      "tags": [
+       "favorited"
+      ],
+      "trackCount": 40
+     }
+    },
+    {
+     "id": "p.AbCdEf3",
+     "type": "library-playlists",
+     "attributes": {
+      "name": "List C",
+      "playParams": {
+       "id": "p.AbCdEf3",
+       "globalId": "pl.u-abc"
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/me/library/songs?limit=100": {
+   "data": [
+    {
+     "id": "i.AbCdEf1",
+     "type": "library-songs",
+     "attributes": {
+      "name": "Song A",
+      "artistName": "Artist A",
+      "albumName": "Album A",
+      "playParams": {
+       "id": "i.AbCdEf1",
+       "isLibrary": true,
+       "kind": "song",
+       "catalogId": "1000000001"
+      },
+      "durationInMillis": 201000
+     }
+    },
+    {
+     "id": "i.AbCdEf2",
+     "type": "library-songs",
+     "attributes": {
+      "name": "Song B",
+      "artistName": "Artist B",
+      "albumName": "Album A",
+      "playParams": {
+       "id": "i.AbCdEf2",
+       "isLibrary": true,
+       "kind": "song"
+      },
+      "durationInMillis": 59999
+     }
+    },
+    {
+     "id": "i.AbCdEf3",
+     "type": "library-songs",
+     "attributes": {
+      "name": "Song C",
+      "artistName": "Artist A",
+      "albumName": "Album A",
+      "playParams": {
+       "id": "i.AbCdEf3",
+       "isLibrary": true,
+       "kind": "song",
+       "catalogId": "1000000003"
+      }
+     }
+    }
+   ],
+   "next": "/v1/me/library/songs?offset=3"
+  },
+  "https://amp-api.music.apple.com/v1/me/library/artists?include=catalog&limit=100": {
+   "data": [
+    {
+     "id": "r.AbCdEf1",
+     "type": "library-artists",
+     "attributes": {
+      "name": "Artist A"
+     }
+    },
+    {
+     "id": "r.AbCdEf2",
+     "type": "library-artists",
+     "attributes": {
+      "name": "Artist B"
+     }
+    }
+   ],
+   "meta": {
+    "total": 2
+   }
+  },
+  "https://amp-api.music.apple.com/v1/me/library/recently-added?limit=25": {
+   "data": [
+    {
+     "id": "l.AbCdEf1",
+     "type": "library-albums",
+     "attributes": {
+      "name": "Album A",
+      "artistName": "Artist A",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "trackCount": 12
+     }
+    },
+    {
+     "id": "p.AbCdEf1",
+     "type": "library-playlists",
+     "attributes": {
+      "name": "List A",
+      "canEdit": true
+     }
+    },
+    {
+     "id": "x.1",
+     "type": "library-music-videos",
+     "attributes": {
+      "name": "A Video"
+     }
+    }
+   ],
+   "next": "/v1/me/library/recently-added?offset=25"
+  },
+  "https://amp-api.music.apple.com/v1/me/library/albums/l.AbCdEf1/tracks?limit=100": {
+   "data": [
+    {
+     "id": "i.AbCdEf1",
+     "type": "library-songs",
+     "attributes": {
+      "name": "Song A",
+      "artistName": "Artist A",
+      "albumName": "Album A",
+      "playParams": {
+       "id": "i.AbCdEf1",
+       "isLibrary": true,
+       "kind": "song",
+       "catalogId": "1000000001"
+      },
+      "durationInMillis": 201000
+     }
+    },
+    {
+     "id": "i.AbCdEf2",
+     "type": "library-songs",
+     "attributes": {
+      "name": "Song B",
+      "artistName": "Artist B",
+      "albumName": "Album A",
+      "playParams": {
+       "id": "i.AbCdEf2",
+       "isLibrary": true,
+       "kind": "song"
+      },
+      "durationInMillis": 59999
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/me/library/playlists/p.AbCdEf1/tracks?limit=2&offset=1": {
+   "data": [
+    {
+     "id": "i.AbCdEf2",
+     "type": "library-songs",
+     "attributes": {
+      "name": "Song B",
+      "artistName": "Artist B",
+      "albumName": "Album A",
+      "playParams": {
+       "id": "i.AbCdEf2",
+       "isLibrary": true,
+       "kind": "song"
+      },
+      "durationInMillis": 59999
+     }
+    },
+    {
+     "id": "i.AbCdEf3",
+     "type": "library-songs",
+     "attributes": {
+      "name": "Song C",
+      "artistName": "Artist A",
+      "albumName": "Album A",
+      "playParams": {
+       "id": "i.AbCdEf3",
+       "isLibrary": true,
+       "kind": "song",
+       "catalogId": "1000000003"
+      },
+      "durationInMillis": 3599000
+     }
+    }
+   ],
+   "next": "/v1/me/library/playlists/p.AbCdEf1/tracks?offset=3",
+   "meta": {
+    "total": 9
+   }
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/playlists/pl.abc123?include=tracks": {
+   "data": [
+    {
+     "id": "pl.abc123",
+     "type": "playlists",
+     "attributes": {
+      "name": "List P",
+      "curatorName": "Curator A"
+     },
+     "relationships": {
+      "tracks": {
+       "data": [
+        {
+         "id": "1000000001",
+         "type": "songs",
+         "attributes": {
+          "name": "Song A",
+          "artistName": "Artist A",
+          "albumName": "Album A",
+          "durationInMillis": 201000,
+          "playParams": {
+           "id": "1000000001",
+           "kind": "song"
+          },
+          "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000001",
+          "trackNumber": 3,
+          "discNumber": 1,
+          "genreNames": [
+           "Genre A"
+          ],
+          "releaseDate": "2020-05-06",
+          "isrc": "ZZZZZ2000001",
+          "contentRating": "clean",
+          "hasLyrics": true,
+          "artwork": {
+           "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+           "width": 1200,
+           "height": 1200,
+           "bgColor": "102030"
+          },
+          "audioTraits": [
+           "atmos",
+           "lossless"
+          ]
+         },
+         "relationships": {
+          "albums": {
+           "data": [
+            {
+             "id": "1000000010",
+             "type": "albums"
+            }
+           ]
+          },
+          "artists": {
+           "data": [
+            {
+             "id": "2000000001",
+             "type": "artists"
+            }
+           ]
+          }
+         }
+        },
+        {
+         "id": "1000000002",
+         "type": "songs",
+         "attributes": {
+          "name": "Song B",
+          "artistName": "Artist B",
+          "albumName": "Album A",
+          "durationInMillis": 59999,
+          "playParams": {
+           "id": "1000000002",
+           "kind": "song"
+          },
+          "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002",
+          "audioTraits": [
+           "lossless"
+          ]
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/playlists/pl.u-abc?include=tracks": {
+   "data": [
+    {
+     "id": "pl.u-abc",
+     "type": "playlists",
+     "attributes": {
+      "name": "List Q"
+     },
+     "relationships": {
+      "tracks": {
+       "data": []
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/albums/1000000010?include=tracks": {
+   "data": [
+    {
+     "id": "1000000010",
+     "type": "albums",
+     "attributes": {
+      "name": "Album A",
+      "artistName": "Artist A",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "audioTraits": [
+       "atmos",
+       "lossless"
+      ],
+      "releaseDate": "2020-05-06",
+      "trackCount": 3
+     },
+     "relationships": {
+      "tracks": {
+       "data": [
+        {
+         "id": "1000000001",
+         "type": "songs",
+         "attributes": {
+          "name": "Song A",
+          "artistName": "Artist A",
+          "albumName": "Album A",
+          "durationInMillis": 201000,
+          "playParams": {
+           "id": "1000000001",
+           "kind": "song"
+          },
+          "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000001",
+          "trackNumber": 3,
+          "discNumber": 1,
+          "genreNames": [
+           "Genre A"
+          ],
+          "releaseDate": "2020-05-06",
+          "isrc": "ZZZZZ2000001",
+          "contentRating": "clean",
+          "hasLyrics": true,
+          "artwork": {
+           "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+           "width": 1200,
+           "height": 1200,
+           "bgColor": "102030"
+          },
+          "audioTraits": [
+           "atmos",
+           "lossless"
+          ]
+         },
+         "relationships": {
+          "albums": {
+           "data": [
+            {
+             "id": "1000000010",
+             "type": "albums"
+            }
+           ]
+          },
+          "artists": {
+           "data": [
+            {
+             "id": "2000000001",
+             "type": "artists"
+            }
+           ]
+          }
+         }
+        },
+        {
+         "id": "1000000002",
+         "type": "songs",
+         "attributes": {
+          "name": "Song B",
+          "artistName": "Artist B",
+          "albumName": "Album A",
+          "durationInMillis": 59999,
+          "playParams": {
+           "id": "1000000002",
+           "kind": "song"
+          },
+          "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002",
+          "audioTraits": [
+           "lossless"
+          ]
+         }
+        },
+        {
+         "id": "1000000003",
+         "type": "songs",
+         "attributes": {
+          "name": "Song C",
+          "artistName": "Artist A",
+          "albumName": "Album A",
+          "durationInMillis": 3599000,
+          "playParams": {
+           "id": "1000000003",
+           "kind": "song"
+          },
+          "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000003"
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/albums/1000000011?include=tracks": {
+   "data": [
+    {
+     "id": "1000000011",
+     "type": "albums",
+     "attributes": {
+      "name": "Album B",
+      "artistName": "Artist B",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      }
+     },
+     "relationships": {
+      "tracks": {
+       "data": [
+        {
+         "id": "1000000004",
+         "type": "songs",
+         "attributes": {
+          "name": "Song D",
+          "artistName": "Artist B"
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/me/library/search?term=song+a&types=library-songs,library-albums,library-artists,library-playlists&limit=3": {
+   "results": {
+    "library-songs": {
+     "data": [
+      {
+       "id": "i.AbCdEf1",
+       "type": "library-songs",
+       "attributes": {
+        "name": "Song A",
+        "artistName": "Artist A",
+        "albumName": "Album A",
+        "playParams": {
+         "id": "i.AbCdEf1",
+         "isLibrary": true,
+         "kind": "song",
+         "catalogId": "1000000001"
+        },
+        "durationInMillis": 201000
+       }
+      }
+     ]
+    },
+    "library-albums": {
+     "data": [
+      {
+       "id": "l.AbCdEf1",
+       "type": "library-albums",
+       "attributes": {
+        "name": "Album A",
+        "artistName": "Artist A",
+        "artwork": {
+         "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+         "width": 1200,
+         "height": 1200,
+         "bgColor": "102030"
+        },
+        "trackCount": 12
+       }
+      }
+     ]
+    },
+    "library-playlists": {
+     "data": [
+      {
+       "id": "p.AbCdEf1",
+       "type": "library-playlists",
+       "attributes": {
+        "name": "List A",
+        "canEdit": true
+       }
+      }
+     ]
+    }
+   }
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/search?term=song+a&types=songs,albums,artists,playlists&limit=3&with=topResults": {
+   "results": {
+    "topResults": {
+     "data": [
+      {
+       "id": "2000000001",
+       "type": "artists",
+       "attributes": {
+        "name": "Artist A",
+        "genreNames": [
+         "Genre A"
+        ]
+       }
+      }
+     ]
+    },
+    "songs": {
+     "data": [
+      {
+       "id": "1000000001",
+       "type": "songs",
+       "attributes": {
+        "name": "Song A",
+        "artistName": "Artist A",
+        "albumName": "Album A",
+        "durationInMillis": 201000,
+        "playParams": {
+         "id": "1000000001",
+         "kind": "song"
+        },
+        "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000001",
+        "trackNumber": 3,
+        "discNumber": 1,
+        "genreNames": [
+         "Genre A"
+        ],
+        "releaseDate": "2020-05-06",
+        "isrc": "ZZZZZ2000001",
+        "contentRating": "clean",
+        "hasLyrics": true,
+        "artwork": {
+         "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+         "width": 1200,
+         "height": 1200,
+         "bgColor": "102030"
+        },
+        "audioTraits": [
+         "atmos",
+         "lossless"
+        ]
+       },
+       "relationships": {
+        "albums": {
+         "data": [
+          {
+           "id": "1000000010",
+           "type": "albums"
+          }
+         ]
+        },
+        "artists": {
+         "data": [
+          {
+           "id": "2000000001",
+           "type": "artists"
+          }
+         ]
+        }
+       }
+      },
+      {
+       "id": "1000000002",
+       "type": "songs",
+       "attributes": {
+        "name": "Song B",
+        "artistName": "Artist B",
+        "albumName": "Album A",
+        "durationInMillis": 59999,
+        "playParams": {
+         "id": "1000000002",
+         "kind": "song"
+        },
+        "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002",
+        "audioTraits": [
+         "lossless"
+        ]
+       }
+      }
+     ]
+    },
+    "albums": {
+     "data": [
+      {
+       "id": "1000000010",
+       "type": "albums",
+       "attributes": {
+        "name": "Album A",
+        "artistName": "Artist A",
+        "artwork": {
+         "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+         "width": 1200,
+         "height": 1200,
+         "bgColor": "102030"
+        },
+        "trackCount": 3
+       }
+      }
+     ]
+    },
+    "artists": {
+     "data": [
+      {
+       "id": "2000000001",
+       "type": "artists",
+       "attributes": {
+        "name": "Artist A",
+        "genreNames": [
+         "Genre A"
+        ]
+       }
+      }
+     ]
+    },
+    "playlists": {
+     "data": [
+      {
+       "id": "pl.abc123",
+       "type": "playlists",
+       "attributes": {
+        "name": "List P",
+        "trackCount": 25,
+        "curatorName": "Curator A"
+       }
+      }
+     ]
+    }
+   }
+  },
+  "https://amp-api.music.apple.com/v1/me/library/search?term=nothing&types=library-songs,library-albums,library-artists,library-playlists&limit=5": {
+   "results": {}
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/search?term=nothing&types=songs,albums,artists,playlists&limit=5&with=topResults": {
+   "results": {
+    "top": {
+     "data": [
+      {
+       "id": "1000000002",
+       "type": "songs",
+       "attributes": {
+        "name": "Song B",
+        "artistName": "Artist B",
+        "albumName": "Album A",
+        "durationInMillis": 59999,
+        "playParams": {
+         "id": "1000000002",
+         "kind": "song"
+        },
+        "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002",
+        "audioTraits": [
+         "lossless"
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/songs/1000000001": {
+   "data": [
+    {
+     "id": "1000000001",
+     "type": "songs",
+     "attributes": {
+      "name": "Song A",
+      "artistName": "Artist A",
+      "albumName": "Album A",
+      "durationInMillis": 201000,
+      "playParams": {
+       "id": "1000000001",
+       "kind": "song"
+      },
+      "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000001",
+      "trackNumber": 3,
+      "discNumber": 1,
+      "genreNames": [
+       "Genre A"
+      ],
+      "releaseDate": "2020-05-06",
+      "isrc": "ZZZZZ2000001",
+      "contentRating": "clean",
+      "hasLyrics": true,
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "audioTraits": [
+       "atmos",
+       "lossless"
+      ]
+     },
+     "relationships": {
+      "albums": {
+       "data": [
+        {
+         "id": "1000000010",
+         "type": "albums"
+        }
+       ]
+      },
+      "artists": {
+       "data": [
+        {
+         "id": "2000000001",
+         "type": "artists"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/songs/1000000004": {
+   "data": [
+    {
+     "id": "1000000004",
+     "type": "songs",
+     "attributes": {
+      "name": "Song D",
+      "artistName": "Artist B"
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/songs/1000000001?include=lyrics,syllable-lyrics&extend=ttmlLocalizations": {
+   "data": [
+    {
+     "id": "1000000001",
+     "type": "songs",
+     "attributes": {
+      "name": "Song A",
+      "artistName": "Artist A",
+      "albumName": "Album A",
+      "durationInMillis": 201000,
+      "playParams": {
+       "id": "1000000001",
+       "kind": "song"
+      },
+      "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000001",
+      "trackNumber": 3,
+      "discNumber": 1,
+      "genreNames": [
+       "Genre A"
+      ],
+      "releaseDate": "2020-05-06",
+      "isrc": "ZZZZZ2000001",
+      "contentRating": "clean",
+      "hasLyrics": true,
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "audioTraits": [
+       "atmos",
+       "lossless"
+      ]
+     },
+     "relationships": {
+      "syllable-lyrics": {
+       "data": [
+        {
+         "id": "1000000001",
+         "type": "syllable-lyrics",
+         "attributes": {
+          "ttmlLocalizations": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<tt xmlns=\"http://www.w3.org/ns/ttml\" xmlns:ttm=\"http://www.w3.org/ns/ttml#metadata\" xmlns:itunes=\"http://music.apple.com/lyric-ttml-internal\" xml:lang=\"en\" itunes:timing=\"Word\">\n <head><metadata><ttm:agent type=\"person\" xml:id=\"v1\"/><ttm:agent type=\"person\" xml:id=\"v2\"/></metadata></head>\n <body dur=\"2:10.000\">\n  <div begin=\"0:01.000\" end=\"0:10.000\">\n   <p begin=\"0:01.000\" end=\"0:04.000\" ttm:agent=\"v1\"><span begin=\"0:01.000\" end=\"0:01.500\">First</span> <span begin=\"0:01.500\" end=\"0:04.000\">line</span></p>\n   <p begin=\"0:04.500\" end=\"0:08.000\" ttm:agent=\"v2\"><span begin=\"0:04.500\" end=\"0:05.000\">Second</span> <span begin=\"0:05.000\" end=\"0:08.000\">line</span></p>\n   <p begin=\"1:05.250\" end=\"1:08.000\" ttm:agent=\"v1\" ttm:role=\"x-bg\"><span begin=\"1:05.250\" end=\"1:06.000\">(in</span> <span begin=\"1:06.000\" end=\"1:08.000\">back)</span></p>\n   <p begin=\"2:00.000\" end=\"2:09.999\" ttm:agent=\"v1\"><span begin=\"2:00.000\" end=\"2:09.999\">Last</span></p>\n  </div>\n </body>\n</tt>\n"
+         }
+        }
+       ]
+      },
+      "lyrics": {
+       "data": [
+        {
+         "id": "1000000001",
+         "type": "lyrics",
+         "attributes": {
+          "ttml": "<tt xmlns=\"http://www.w3.org/ns/ttml\" xmlns:ttm=\"http://www.w3.org/ns/ttml#metadata\" xmlns:itunes=\"http://music.apple.com/lyric-ttml-internal\" itunes:timing=\"None\">\n<body><div><p>One untimed line</p><p>Another untimed line</p></div></body></tt>\n"
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/songs/1000000002?include=lyrics,syllable-lyrics&extend=ttmlLocalizations": {
+   "data": [
+    {
+     "id": "1000000002",
+     "type": "songs",
+     "attributes": {
+      "name": "Song B",
+      "artistName": "Artist B",
+      "albumName": "Album A",
+      "durationInMillis": 59999,
+      "playParams": {
+       "id": "1000000002",
+       "kind": "song"
+      },
+      "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002",
+      "audioTraits": [
+       "lossless"
+      ]
+     },
+     "relationships": {
+      "lyrics": {
+       "data": [
+        {
+         "id": "1000000002",
+         "type": "lyrics",
+         "attributes": {
+          "ttml": "<tt xmlns=\"http://www.w3.org/ns/ttml\" xmlns:ttm=\"http://www.w3.org/ns/ttml#metadata\" xmlns:itunes=\"http://music.apple.com/lyric-ttml-internal\" itunes:timing=\"None\">\n<body><div><p>One untimed line</p><p>Another untimed line</p></div></body></tt>\n"
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/songs/1000000003?include=lyrics,syllable-lyrics&extend=ttmlLocalizations": {
+   "data": [
+    {
+     "id": "1000000003",
+     "type": "songs",
+     "attributes": {
+      "name": "Song C",
+      "artistName": "Artist A",
+      "albumName": "Album A",
+      "durationInMillis": 3599000,
+      "playParams": {
+       "id": "1000000003",
+       "kind": "song"
+      },
+      "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000003"
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/me/recent/played?types=albums,playlists&limit=4": {
+   "data": [
+    {
+     "id": "1000000010",
+     "type": "albums",
+     "attributes": {
+      "name": "Album A",
+      "artistName": "Artist A",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "trackCount": 3
+     }
+    },
+    {
+     "id": "pl.u-abc",
+     "type": "playlists",
+     "attributes": {
+      "name": "List Q"
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/me/recent/played?types=albums,playlists&limit=10": {
+   "data": [
+    {
+     "id": "1000000010",
+     "type": "albums",
+     "attributes": {
+      "name": "Album A",
+      "artistName": "Artist A",
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "trackCount": 3
+     }
+    },
+    {
+     "id": "pl.abc123",
+     "type": "playlists",
+     "attributes": {
+      "name": "List P",
+      "trackCount": 25,
+      "curatorName": "Curator A"
+     }
+    },
+    {
+     "id": "ra.1",
+     "type": "stations",
+     "attributes": {
+      "name": "Station A"
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/me/recent/played/tracks?types=songs&limit=10": {
+   "data": [
+    {
+     "id": "1000000002",
+     "type": "songs",
+     "attributes": {
+      "name": "Song B",
+      "artistName": "Artist B",
+      "albumName": "Album A",
+      "durationInMillis": 59999,
+      "playParams": {
+       "id": "1000000002",
+       "kind": "song"
+      },
+      "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002",
+      "audioTraits": [
+       "lossless"
+      ]
+     }
+    },
+    {
+     "id": "1000000001",
+     "type": "songs",
+     "attributes": {
+      "name": "Song A",
+      "artistName": "Artist A",
+      "albumName": "Album A",
+      "durationInMillis": 201000,
+      "playParams": {
+       "id": "1000000001",
+       "kind": "song"
+      },
+      "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000001",
+      "trackNumber": 3,
+      "discNumber": 1,
+      "genreNames": [
+       "Genre A"
+      ],
+      "releaseDate": "2020-05-06",
+      "isrc": "ZZZZZ2000001",
+      "contentRating": "clean",
+      "hasLyrics": true,
+      "artwork": {
+       "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+       "width": 1200,
+       "height": 1200,
+       "bgColor": "102030"
+      },
+      "audioTraits": [
+       "atmos",
+       "lossless"
+      ]
+     },
+     "relationships": {
+      "albums": {
+       "data": [
+        {
+         "id": "1000000010",
+         "type": "albums"
+        }
+       ]
+      },
+      "artists": {
+       "data": [
+        {
+         "id": "2000000001",
+         "type": "artists"
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/me/recommendations": {
+   "data": [
+    {
+     "id": "6-27s5hU6azhJY",
+     "type": "personal-recommendation",
+     "attributes": {
+      "title": {
+       "stringForDisplay": "Made for You"
+      }
+     },
+     "relationships": {
+      "contents": {
+       "data": [
+        {
+         "id": "pl.abc123",
+         "type": "playlists",
+         "attributes": {
+          "name": "List P",
+          "curatorName": "Curator A"
+         }
+        },
+        {
+         "id": "1000000010",
+         "type": "albums",
+         "attributes": {
+          "name": "Album A",
+          "artistName": "Artist A",
+          "artwork": {
+           "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+           "width": 1200,
+           "height": 1200,
+           "bgColor": "102030"
+          }
+         }
+        },
+        {
+         "id": "pl.u-abc",
+         "type": "playlists",
+         "attributes": {
+          "name": "List Q"
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "6-27s5hU6azhJZ",
+     "type": "personal-recommendation",
+     "attributes": {
+      "title": "A name that goes on for much longer than the forty-eight characters a column has"
+     },
+     "relationships": {
+      "contents": {
+       "data": [
+        {
+         "id": "1000000011",
+         "type": "albums",
+         "attributes": {
+          "name": "Album B",
+          "artistName": "Artist B",
+          "artwork": {
+           "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+           "width": 1200,
+           "height": 1200,
+           "bgColor": "102030"
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "6-27s5hU6azhJ0",
+     "type": "personal-recommendation",
+     "attributes": {
+      "title": "Stations only"
+     },
+     "relationships": {
+      "contents": {
+       "data": [
+        {
+         "id": "ra.1",
+         "type": "stations",
+         "attributes": {
+          "name": "S"
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "https://amp-api.music.apple.com/v1/catalog/zz/charts?types=albums,songs,playlists&limit=20": {
+   "results": {
+    "songs": [
+     {
+      "chart": "most-played",
+      "name": "Top Songs",
+      "data": [
+       {
+        "id": "1000000001",
+        "type": "songs",
+        "attributes": {
+         "name": "Song A",
+         "artistName": "Artist A",
+         "albumName": "Album A",
+         "durationInMillis": 201000,
+         "playParams": {
+          "id": "1000000001",
+          "kind": "song"
+         },
+         "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000001",
+         "trackNumber": 3,
+         "discNumber": 1,
+         "genreNames": [
+          "Genre A"
+         ],
+         "releaseDate": "2020-05-06",
+         "isrc": "ZZZZZ2000001",
+         "contentRating": "clean",
+         "hasLyrics": true,
+         "artwork": {
+          "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+          "width": 1200,
+          "height": 1200,
+          "bgColor": "102030"
+         },
+         "audioTraits": [
+          "atmos",
+          "lossless"
+         ]
+        },
+        "relationships": {
+         "albums": {
+          "data": [
+           {
+            "id": "1000000010",
+            "type": "albums"
+           }
+          ]
+         },
+         "artists": {
+          "data": [
+           {
+            "id": "2000000001",
+            "type": "artists"
+           }
+          ]
+         }
+        }
+       },
+       {
+        "id": "1000000003",
+        "type": "songs",
+        "attributes": {
+         "name": "Song C",
+         "artistName": "Artist A",
+         "albumName": "Album A",
+         "durationInMillis": 3599000,
+         "playParams": {
+          "id": "1000000003",
+          "kind": "song"
+         },
+         "url": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000003"
+        }
+       }
+      ]
+     }
+    ],
+    "albums": [
+     {
+      "chart": "most-played",
+      "name": "Top Albums",
+      "data": [
+       {
+        "id": "1000000010",
+        "type": "albums",
+        "attributes": {
+         "name": "Album A",
+         "artistName": "Artist A",
+         "artwork": {
+          "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/{w}x{h}bb.jpg",
+          "width": 1200,
+          "height": 1200,
+          "bgColor": "102030"
+         },
+         "trackCount": 3
+        }
+       }
+      ]
+     }
+    ],
+    "playlists": [
+     {
+      "chart": "most-played",
+      "data": [
+       {
+        "id": "pl.abc123",
+        "type": "playlists",
+        "attributes": {
+         "name": "List P",
+         "curatorName": "Curator A"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "https://amp-api.music.apple.com/v1/me/library/songs?limit=7": {
+   "__refused__": 401
+  },
+  "https://amp-api.music.apple.com/v1/play/assets?id=1000000001&kind=song&includeLicenseUrls=true&hlsEncryption=CBC&hlsProfile=enhancedHls": {
+   "results": {
+    "assets": [
+     {
+      "url": "https://aod.itunes.apple.com/itunes-assets/HLSMusic/v4/ab/cd/P1000_hvc-abc_m.m3u8?a=1&sig=xyz"
+     }
+    ]
+   }
+  },
+  "https://aod.itunes.apple.com/itunes-assets/HLSMusic/v4/ab/cd/P1000_default.m3u8?a=1&sig=xyz": {
+   "__text__": "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=270324,BANDWIDTH=270424,CODECS=\"mp4a.40.2\",AUDIO=\"audio-stereo-256\"\naudio-stereo-256/P1000_default.m3u8?a=1&sig=xyz\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=771901,BANDWIDTH=772001,CODECS=\"ec-3\",AUDIO=\"audio-atmos-2768\"\naudio-atmos-2768/P1000_default.m3u8?a=1&sig=xyz\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=451540,BANDWIDTH=451640,CODECS=\"ec-3\",AUDIO=\"audio-atmos-2448\"\naudio-atmos-2448/P1000_default.m3u8?a=1&sig=xyz\n"
+  },
+  "https://amp-api.music.apple.com/v1/play/assets?id=1000000002&kind=song&includeLicenseUrls=true&hlsEncryption=CBC&hlsProfile=enhancedHls": {
+   "results": {
+    "assets": [
+     {
+      "url": "https://aod.itunes.apple.com/itunes-assets/HLSMusic/v4/ef/gh/P2000_hvc-abc_m.m3u8?a=1&sig=xyz"
+     }
+    ]
+   }
+  },
+  "https://aod.itunes.apple.com/itunes-assets/HLSMusic/v4/ef/gh/P2000_default.m3u8?a=1&sig=xyz": {
+   "__text__": "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=270324,BANDWIDTH=270424,CODECS=\"mp4a.40.2\",AUDIO=\"audio-stereo-256\"\naudio-stereo-256/P1000_default.m3u8?a=1&sig=xyz\n"
+  },
+  "https://amp-api.music.apple.com/v1/play/assets?id=1000000003&kind=song&includeLicenseUrls=true&hlsEncryption=CBC&hlsProfile=enhancedHls": {
+   "results": {
+    "assets": []
+   }
+  },
+  "https://aod.itunes.apple.com/itunes-assets/HLSMusic/v4/ij/kl/P3000_default.m3u8": {
+   "__text__": "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=270617,BANDWIDTH=270717,CODECS=\"mp4a.40.2\",AUDIO=\"audio-stereo-256\"\naudio-stereo-256/P1000_default.m3u8?a=1&sig=xyz\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=772443,BANDWIDTH=772543,CODECS=\"ec-3\",AUDIO=\"audio-atmos-2768\"\naudio-atmos-2768/P1000_default.m3u8?a=1&sig=xyz\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=899900,BANDWIDTH=900000,CODECS=\"alac\",AUDIO=\"audio-alac-stereo-44100-16\"\naudio-alac-stereo-44100-16/P1000_default.m3u8?a=1&sig=xyz\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=1995349,BANDWIDTH=1995449,CODECS=\"alac\",AUDIO=\"audio-alac-stereo-48000-24\"\naudio-alac-stereo-48000-24/P1000_default.m3u8?a=1&sig=xyz\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=3799900,BANDWIDTH=3800000,CODECS=\"alac\",AUDIO=\"audio-alac-stereo-96000-24\"\naudio-alac-stereo-96000-24/P1000_default.m3u8?a=1&sig=xyz\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=7000899,BANDWIDTH=7000999,CODECS=\"alac\",AUDIO=\"audio-alac-stereo-192000-24\"\naudio-alac-stereo-192000-24/P1000_default.m3u8?a=1&sig=xyz\n"
+  },
+  "https://aod.itunes.apple.com/itunes-assets/HLSMusic/v4/mn/op/P4000_default.m3u8": {
+   "__text__": "#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-INDEPENDENT-SEGMENTS\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=270617,BANDWIDTH=270717,CODECS=\"mp4a.40.2\",AUDIO=\"audio-stereo-256\"\naudio-stereo-256/P1000_default.m3u8?a=1&sig=xyz\n#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=772443,BANDWIDTH=772543,CODECS=\"ec-3\",AUDIO=\"audio-atmos-2768\"\naudio-atmos-2768/P1000_default.m3u8?a=1&sig=xyz\n"
+  }
+ },
+ "groups": [
+  {
+   "name": "library",
+   "state": {
+    "signins": [
+     "android"
+    ]
+   },
+   "cases": [
+    {
+     "argv": [
+      "albums"
+     ],
+     "status": 0,
+     "stdout": "key        name                                              artist                            count\n---------  ------------------------------------------------  --------------------------------  -----\nl.AbCdEf1  Album A                                           Artist A                          12   \nl.AbCdEf2  A name that goes on for much longer than the fo…  An artist whose name is longer …       \nl.AbCdEf3  Álbum Ñ                                           Ártist Ö                               \n3 albums of 257; next --offset 100\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "albums",
+      "--offset",
+      "100",
+      "--limit",
+      "2"
+     ],
+     "status": 0,
+     "stdout": "key        name     artist    count\n---------  -------  --------  -----\nl.AbCdEf4  Album D  Artist A  1    \n1 albums of 257\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "albums",
+      "--limit",
+      "5",
+      "--offset",
+      "300"
+     ],
+     "status": 0,
+     "stdout": "  (none)\n0 albums\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "playlists"
+     ],
+     "status": 0,
+     "stdout": "key        name             artist   count\n---------  ---------------  -------  -----\np.AbCdEf1  List A           library       \np.AbCdEf2  Favourite Songs  library  40   \np.AbCdEf3  List C           library       \n3 playlists\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "songs"
+     ],
+     "status": 0,
+     "stdout": "key         name    artist    count\n----------  ------  --------  -----\n1000000001  Song A  Artist A  3:21 \ni.AbCdEf2   Song B  Artist B  0:59 \n1000000003  Song C  Artist A       \n3 songs; next --offset 3\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "artists"
+     ],
+     "status": 0,
+     "stdout": "key        name      artist  count\n---------  --------  ------  -----\nr.AbCdEf1  Artist A               \nr.AbCdEf2  Artist B               \n2 artists of 2\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "recently-added"
+     ],
+     "status": 0,
+     "stdout": "key        name     artist    count\n---------  -------  --------  -----\nl.AbCdEf1  Album A  Artist A  12   \np.AbCdEf1  List A   library        \n2 recently added items; next --offset 25\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "tracks",
+      "l.AbCdEf1"
+     ],
+     "status": 0,
+     "stdout": "#  name    artist    time  catalog id     audio\n-  ------  --------  ----  -------------  -----\n1  Song A  Artist A  3:21  1000000001     ?    \n2  Song B  Artist B  0:59  (unavailable)  ?    \n2 tracks\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "tracks",
+      " p.AbCdEf1 ",
+      "--offset",
+      "1",
+      "--limit",
+      "2"
+     ],
+     "status": 0,
+     "stdout": "#  name    artist    time   catalog id     audio\n-  ------  --------  -----  -------------  -----\n2  Song B  Artist B  0:59   (unavailable)  ?    \n3  Song C  Artist A  59:59  1000000003     ?    \n2 tracks of 9; next --offset 3\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "tracks",
+      "pl.abc123"
+     ],
+     "status": 0,
+     "stdout": "List P — Curator A (2 tracks)\n#  name    artist    time  catalog id  audio\n-  ------  --------  ----  ----------  -----\n1  Song A  Artist A  3:21  1000000001  atmos\n2  Song B  Artist B  0:59  1000000002  -    \n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "tracks",
+      "pl.u-abc"
+     ],
+     "status": 0,
+     "stdout": "List Q —  (0 tracks)\n  (none)\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "tracks",
+      "1000000010"
+     ],
+     "status": 0,
+     "stdout": "Album A — Artist A (2020-05-06; 3 tracks; audioTraits: atmos, lossless)\n#  name    artist    time   catalog id  audio\n-  ------  --------  -----  ----------  -----\n1  Song A  Artist A  3:21   1000000001  atmos\n2  Song B  Artist B  0:59   1000000002  -    \n3  Song C  Artist A  59:59  1000000003  ?    \n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "tracks",
+      "1000000011"
+     ],
+     "status": 0,
+     "stdout": "Album B — Artist B (?; 1 tracks; audioTraits: unknown)\n#  name    artist    time  catalog id  audio\n-  ------  --------  ----  ----------  -----\n1  Song D  Artist B        1000000004  ?    \n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "tracks",
+      "x.123"
+     ],
+     "status": 2,
+     "stdout": "",
+     "stderr": "Unrecognised key: expected l.…, p.…, pl.… or a numeric catalog album id\n"
+    },
+    {
+     "argv": [
+      "tracks",
+      "l.missing"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "Error: amp-api.music.apple.com returned HTTP 404\n"
+    },
+    {
+     "argv": [
+      "tracks",
+      "p.missing"
+     ],
+     "status": 0,
+     "stdout": "  (none)\n0 tracks of 0\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "search",
+      "song",
+      "a",
+      "--limit",
+      "3"
+     ],
+     "status": 0,
+     "stdout": "== library\n-- songs\nkey         name    artist    count\n----------  ------  --------  -----\n1000000001  Song A  Artist A  3:21 \n-- albums\nkey        name     artist    count\n---------  -------  --------  -----\nl.AbCdEf1  Album A  Artist A  12   \n-- artists\n  (none)\n-- playlists\nkey        name    artist   count\n---------  ------  -------  -----\np.AbCdEf1  List A  library       \n== catalog\ntop result (artist): 2000000001 | Artist A | \n-- songs\nkey         name    artist    count\n----------  ------  --------  -----\n1000000001  Song A  Artist A  3:21 \n1000000002  Song B  Artist B  0:59 \n-- albums\nkey         name     artist    count\n----------  -------  --------  -----\n1000000010  Album A  Artist A  3    \n-- artists\nkey         name      artist  count\n----------  --------  ------  -----\n2000000001  Artist A               \n-- playlists\nkey        name    artist     count\n---------  ------  ---------  -----\npl.abc123  List P  Curator A  25   \n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "search",
+      "nothing"
+     ],
+     "status": 0,
+     "stdout": "== library\n-- songs\n  (none)\n-- albums\n  (none)\n-- artists\n  (none)\n-- playlists\n  (none)\n== catalog\ntop result (track): 1000000002 | Song B | Artist B\n-- songs\n  (none)\n-- albums\n  (none)\n-- artists\n  (none)\n-- playlists\n  (none)\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "song",
+      "1000000001"
+     ],
+     "status": 0,
+     "stdout": "catalog id      1000000001\nname            Song A\nartist          Artist A\nalbum           Album A\nalbum id        1000000010\nartist id       2000000001\nduration        3:21\ntrack           3 (disc 1)\ngenre           Genre A\nreleased        2020-05-06\nisrc            ZZZZZ2000001\ncontent rating  clean\nhas lyrics      True\naudioTraits     atmos, lossless\natmos           True\nartwork         https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/600x600bb.jpg\nartwork bg      102030\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "song",
+      "1000000004"
+     ],
+     "status": 0,
+     "stdout": "catalog id      1000000004\nname            Song D\nartist          Artist B\nalbum           \nalbum id        \nartist id       \nduration        \ntrack           ? (disc ?)\ngenre           \nreleased        \nisrc            \ncontent rating  \nhas lyrics      \naudioTraits     (none listed)\natmos           \nartwork         \nartwork bg      \n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "song",
+      "1000000404"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "Error: amp-api.music.apple.com returned HTTP 404\n"
+    },
+    {
+     "argv": [
+      "lyrics",
+      "1000000001"
+     ],
+     "status": 0,
+     "stdout": "source: syllable-lyrics  timing: word  language: en\nlines: 4  timed lines: 4  background lines: 1  timed words: 7  agents: v1, v2\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lyrics",
+      "1000000001",
+      "--show"
+     ],
+     "status": 0,
+     "stdout": "source: syllable-lyrics  timing: word  language: en\nlines: 4  timed lines: 4  background lines: 1  timed words: 7  agents: v1, v2\n[00:01.000] First line\n[00:04.500] Second line\n[01:05.250]  (bg) (in back)\n[02:00.000] Last\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lyrics",
+      "1000000002",
+      "--show"
+     ],
+     "status": 0,
+     "stdout": "source: lyrics  timing: none  language: ?\nlines: 2  timed lines: 0  background lines: 0  timed words: 0  agents: -\n[   --   ] One untimed line\n[   --   ] Another untimed line\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lyrics",
+      "1000000003"
+     ],
+     "status": 1,
+     "stdout": "no lyrics\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lyrics",
+      "1000000404"
+     ],
+     "status": 1,
+     "stdout": "no lyrics\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "recent",
+      "--limit",
+      "4"
+     ],
+     "status": 0,
+     "stdout": "key         name     artist    count\n----------  -------  --------  -----\n1000000010  Album A  Artist A  3    \npl.u-abc    List Q                  \n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "recent",
+      "--limit",
+      "7"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "Error: amp-api.music.apple.com returned HTTP 404\n"
+    },
+    {
+     "argv": [
+      "home"
+     ],
+     "status": 0,
+     "stdout": "== recently played\nkey         name     artist     count\n----------  -------  ---------  -----\n1000000010  Album A  Artist A   3    \npl.abc123   List P   Curator A  25   \n== recently played tracks\n#  name    artist    time  catalog id  audio\n-  ------  --------  ----  ----------  -----\n1  Song B  Artist B  0:59  1000000002  -    \n2  Song A  Artist A  3:21  1000000001  atmos\n== recommendations\ntitle                                             items  kinds          \n------------------------------------------------  -----  ---------------\nMade for You                                      3      album, playlist\nA name that goes on for much longer than the fo…  1      album          \n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "charts"
+     ],
+     "status": 0,
+     "stdout": "== songs: Top Songs\n#  name    artist    time   catalog id  audio\n-  ------  --------  -----  ----------  -----\n1  Song A  Artist A  3:21   1000000001  atmos\n2  Song C  Artist A  59:59  1000000003  ?    \n== albums: Top Albums\nkey         name     artist    count\n----------  -------  --------  -----\n1000000010  Album A  Artist A  3    \n== playlists: \nkey        name    artist     count\n---------  ------  ---------  -----\npl.abc123  List P  Curator A       \n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "songs",
+      "--limit",
+      "7"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "Sign-in rejected: sign in again with the Sign In button of the app, or `./am-ui cli connect` in a terminal\n"
+    }
+   ]
+  },
+  {
+   "name": "no sign-in",
+   "state": {},
+   "cases": [
+    {
+     "argv": [
+      "status"
+     ],
+     "status": 1,
+     "stdout": "state: no_session\ntoken file present: False\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "native sign-in, checked",
+   "state": {
+    "signins": [
+     "android"
+    ],
+    "android_status": "{\"state\": \"connected\", \"checked_at\": \"2026-01-02T03:04:05.678901+00:00\", \"library\": {\"playlists\": {\"accessible\": true, \"sample_count\": 1, \"has_more\": true}, \"songs\": {\"accessible\": true, \"sample_count\": 0, \"has_more\": false}, \"odd\": \"not a dictionary\", \"albums\": {\"accessible\": null}}, \"token\": \"not a key that is read\"}"
+   },
+   "cases": [
+    {
+     "argv": [
+      "status"
+     ],
+     "status": 0,
+     "stdout": "state: connected\nchecked_at: 2026-01-02T03:04:05.678901+00:00\nlibrary playlists: accessible=True has_more=True\nlibrary songs: accessible=True has_more=False\nlibrary albums: accessible=None has_more=None\ntoken file present: True\nsign-in in use: Apple's native sign-in\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "native sign-in, not checked",
+   "state": {
+    "signins": [
+     "android",
+     "browser"
+    ]
+   },
+   "cases": [
+    {
+     "argv": [
+      "status"
+     ],
+     "status": 1,
+     "stdout": "state: unknown\ntoken file present: True\nsign-in in use: Apple's native sign-in\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "browser session, rejected",
+   "state": {
+    "signins": [
+     "browser"
+    ],
+    "browser_status": "{\"state\": \"reconnect_required\", \"checked_at\": \"2026-01-02T03:04:05+00:00\", \"captured_at\": \"2025-12-01T00:00:00+00:00\", \"cookie_expires_at\": \"2026-06-01T00:00:00+00:00\", \"http_status\": 403, \"source\": \"browser\"}"
+   },
+   "cases": [
+    {
+     "argv": [
+      "status"
+     ],
+     "status": 1,
+     "stdout": "state: reconnect_required\nchecked_at: 2026-01-02T03:04:05+00:00\ncookie_expires_at: 2026-06-01T00:00:00+00:00\ncaptured_at: 2025-12-01T00:00:00+00:00\nhttp_status: 403\ntoken file present: True\nsign-in in use: browser session\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "browser session, odd status file",
+   "state": {
+    "signins": [
+     "browser"
+    ],
+    "browser_status": "{\"state\": \"dancing\", \"library\": [\"a\", \"list\"]}"
+   },
+   "cases": [
+    {
+     "argv": [
+      "status"
+     ],
+     "status": 1,
+     "stdout": "state: unknown\ntoken file present: True\nsign-in in use: browser session\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "caches",
+   "state": {
+    "media": [
+     {
+      "key": "1000000001.atmos",
+      "bytes": 4096,
+      "meta": {
+       "catalog_id": "1000000001",
+       "variant": "atmos",
+       "audio_group": "audio-atmos-2768",
+       "codecs": "ec-3",
+       "bandwidth": "772001",
+       "segments": 14,
+       "encrypted_bytes": 5000,
+       "bytes": 4096,
+       "acquired_at": 1767323045.5,
+       "duration_s": 201.386667,
+       "codec": "eac3",
+       "profile": null,
+       "bit_rate": 768000,
+       "sample_rate": 48000,
+       "channels": 6,
+       "container_bit_rate": 771234
+      }
+     },
+     {
+      "key": "1000000002.lossless",
+      "bytes": 1500000,
+      "meta": {
+       "catalog_id": "1000000002",
+       "variant": "lossless",
+       "audio_group": "audio-alac-stereo-48000-24",
+       "codecs": "alac",
+       "bandwidth": "1995349",
+       "bytes": 1500000,
+       "acquired_at": 1767323046.5,
+       "duration_s": 59.999,
+       "codec": "alac",
+       "profile": null,
+       "bit_rate": 1900000,
+       "sample_rate": 48000,
+       "channels": 2,
+       "container_bit_rate": 1905000,
+       "bit_depth": 24
+      }
+     },
+     {
+      "key": "1000000002.stereo",
+      "bytes": 2048,
+      "meta": {
+       "catalog_id": "1000000002",
+       "variant": "stereo",
+       "audio_group": "audio-stereo-256",
+       "codecs": "mp4a.40.2",
+       "bandwidth": "270424",
+       "bytes": 2048,
+       "duration_s": 60,
+       "codec": "aac",
+       "profile": "LC",
+       "bit_rate": 256000,
+       "sample_rate": 44100,
+       "channels": 2
+      }
+     },
+     {
+      "key": "1000000005.stereo",
+      "bytes": 100,
+      "meta": {}
+     }
+    ],
+    "pcm": [
+     {
+      "key": "1000000001.atmos",
+      "files": {
+       "atmos-916.f32le": {
+        "zeros": 30720
+       },
+       "render-summary.json": {
+        "json": {
+         "frames": 480,
+         "bytes": 30720,
+         "channels": 16,
+         "sample_rate": 48000,
+         "channel_fallback_blocks": 0,
+         "nonfinite_samples": 0,
+         "elapsed_seconds": 0.5,
+         "realtime_factor": 20.0
+        }
+       }
+      }
+     },
+     {
+      "key": "1000000002.stereo",
+      "files": {
+       "stereo.f32le": {
+        "zeros": 192000
+       },
+       "meta.json": {
+        "json": {
+         "channels": 2,
+         "frames": 24000,
+         "sample_rate": 48000,
+         "source": "aac",
+         "source_sample_rate": 44100,
+         "resampled": true,
+         "codec": "aac",
+         "profile": "LC",
+         "bit_rate": 256000,
+         "duration_s": 0.5,
+         "source_duration_s": 0.5
+        }
+       }
+      }
+     },
+     {
+      "key": "1000000005.stereo",
+      "files": {
+       "stereo.f32le": {
+        "zeros": 1001
+       }
+      }
+     }
+    ],
+    "art": [
+     {
+      "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/300x300bb.jpg",
+      "bytes": 1234
+     },
+     {
+      "url": "https://is1-ssl.mzstatic.com/image/thumb/Music/x/y/z.jpg/600x600bb.jpg",
+      "bytes": 2048
+     }
+    ]
+   },
+   "cases": [
+    {
+     "argv": [
+      "cache"
+     ],
+     "status": 0,
+     "stdout": "media cache <var>/cache/media (1.4 MiB of 2.0 GiB):\n  1000000005.stereo             100 B  ?         0.00s    used <time>\n  1000000002.stereo           2.0 KiB  aac      60.00s  audio-stereo-256  used <time>\n  1000000002.lossless         1.4 MiB  alac     60.00s  audio-alac-stereo-48000-24  used <time>\n  1000000001.atmos            4.0 KiB  eac3    201.39s  audio-atmos-2768  used <time>\npcm cache <var>/cache/pcm (keep 3 songs):\n  1000000005.stereo            1001 B  partial   used <time>\n  1000000002.stereo         187.5 KiB  complete  used <time>\n  1000000001.atmos           30.0 KiB  complete  used <time>\nart cache <var>/cache/art: 2 files, 3.2 KiB of 256.0 MiB\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "acquire",
+      "1000000001"
+     ],
+     "status": 0,
+     "stdout": "acquire 1000000001 (atmos)\n  done             t+0.0s\n  from_cache: True   elapsed: 0.0s\n  file: <var>/cache/media/1000000001.atmos.m4a\n  bytes: 4096 (4.0 KiB)\n  variant: {'audio_group': 'audio-atmos-2768', 'codecs': 'ec-3', 'bandwidth': '772001'}\n  duration_s: 201.386667  codec: eac3  profile: None  bit_rate: 768000  sample_rate: 48000  channels: 6\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "acquire",
+      "1000000002",
+      "--lossless"
+     ],
+     "status": 0,
+     "stdout": "acquire 1000000002 (lossless)\n  done             t+0.0s\n  from_cache: True   elapsed: 0.0s\n  file: <var>/cache/media/1000000002.lossless.m4a\n  bytes: 1500000 (1.4 MiB)\n  variant: {'audio_group': 'audio-alac-stereo-48000-24', 'codecs': 'alac', 'bandwidth': '1995349', 'sample_rate': 48000, 'bit_depth': 24}\n  duration_s: 59.999  codec: alac  profile: None  bit_rate: 1900000  sample_rate: 48000  channels: 2  bit_depth: 24\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "acquire",
+      "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002",
+      "--stereo"
+     ],
+     "status": 0,
+     "stdout": "acquire 1000000002 (stereo)\n  done             t+0.0s\n  from_cache: True   elapsed: 0.0s\n  file: <var>/cache/media/1000000002.stereo.m4a\n  bytes: 2048 (2.0 KiB)\n  variant: {'audio_group': 'audio-stereo-256', 'codecs': 'mp4a.40.2', 'bandwidth': '270424'}\n  duration_s: 60  codec: aac  profile: LC  bit_rate: 256000  sample_rate: 44100  channels: 2\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "acquire",
+      "1000000003"
+     ],
+     "status": 1,
+     "stdout": "acquire 1000000003 (atmos)\n",
+     "stderr": "error: DRM helper binary missing (build the workspace's amdl-linux harness)\n"
+    },
+    {
+     "argv": [
+      "acquire",
+      "https://music.apple.com/zz/album/album-a/1000000010"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: Use a single song link, or an album link with an ?i= song selection\n"
+    },
+    {
+     "argv": [
+      "acquire",
+      "https://example.com/zz/song/song-a/1000000001"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: Use an Apple Music song link or numeric song ID\n"
+    },
+    {
+     "argv": [
+      "render",
+      "1000000001"
+     ],
+     "status": 0,
+     "stdout": "already rendered: <var>/cache/pcm/1000000001.atmos (480 frames, 0.010s); use --force to render again\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "render",
+      "1000000002"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: 1000000002.atmos is not in the media cache; run: python3 -m amui acquire 1000000002\n"
+    },
+    {
+     "argv": [
+      "decode",
+      "1000000002"
+     ],
+     "status": 0,
+     "stdout": "already decoded: <var>/cache/pcm/1000000002.stereo (24000 frames, 0.500s); use --force to decode again\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "decode",
+      "1000000001"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: 1000000001.stereo is not in the media cache; run: python3 -m amui acquire 1000000001 --stereo\n"
+    },
+    {
+     "argv": [
+      "decode",
+      "1000000005",
+      "--lossless"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: 1000000005.lossless is not in the media cache; run: python3 -m amui acquire 1000000005 --lossless\n"
+    },
+    {
+     "argv": [
+      "decode",
+      "nothing"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: Use an Apple Music song link or numeric song ID\n"
+    },
+    {
+     "argv": [
+      "cache",
+      "--evict"
+     ],
+     "status": 0,
+     "stdout": "media cache <var>/cache/media (1.4 MiB of 2.0 GiB):\n  1000000002.stereo           2.0 KiB  aac      60.00s  audio-stereo-256  used <time>\n  1000000001.atmos            4.0 KiB  eac3    201.39s  audio-atmos-2768  used <time>\n  1000000002.lossless         1.4 MiB  alac     60.00s  audio-alac-stereo-48000-24  used <time>\n  1000000005.stereo             100 B  ?         0.00s    used <time>\npcm cache <var>/cache/pcm (keep 3 songs):\n  1000000002.stereo         187.5 KiB  complete  used <time>\n  1000000001.atmos           30.0 KiB  complete  used <time>\n  1000000005.stereo            1001 B  partial   used <time>\nart cache <var>/cache/art: 2 files, 3.2 KiB of 256.0 MiB\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "empty caches",
+   "state": {},
+   "cases": [
+    {
+     "argv": [
+      "cache"
+     ],
+     "status": 0,
+     "stdout": "media cache <var>/cache/media (0 B of 2.0 GiB):\npcm cache <var>/cache/pcm (keep 3 songs):\nart cache <var>/cache/art: 0 files, 0 B of 256.0 MiB\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lossless"
+     ],
+     "status": 0,
+     "stdout": "  built            False\n  signed_in_files  False\n  running          False\n  storefronts      []\n  available        False\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n  next: ./setup.sh (builds the lossless route on x86_64)\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lossless",
+      "--check",
+      "1000000001"
+     ],
+     "status": 1,
+     "stdout": "  built            False\n  signed_in_files  False\n  running          False\n  storefronts      []\n  available        False\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n  next: ./setup.sh (builds the lossless route on x86_64)\n",
+     "stderr": "error: the lossless route is not built (tools/lossless/build.sh)\n"
+    },
+    {
+     "argv": [
+      "lossless",
+      "--start"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: the lossless route is not built (tools/lossless/build.sh)\n"
+    },
+    {
+     "argv": [
+      "downmix",
+      "--list"
+     ],
+     "status": 0,
+     "stdout": "  peqdb     PEQdB              matrix  peqdb Downmix Renderer: every side channel at 1.0, centre -3 dB, LFE +7.1 dB after a 125 Hz 4th-order low-pass (dry channels delayed to stay aligned).\n  apple     Apple fold-down    matrix  macOS's own fold-down (measured): everything but the front pair at -3 dB, LFE dropped.\n  itu       Default (ITU)      matrix  Conservative broadcast-style fold-down (PipeWire's defaults): surrounds -3 dB, wides -1.25 dB, heights -6 dB, LFE 0.354.\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "downmix"
+     ],
+     "status": 0,
+     "stdout": "current: preset=peqdb preamp=-11.0 dB match=True (from workspace); sink running: True\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "atmos-check",
+      "1000000001"
+     ],
+     "status": 0,
+     "stdout": "1000000001: atmos=True (0.00s)\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "atmos-check",
+      "1000000002"
+     ],
+     "status": 0,
+     "stdout": "1000000002: atmos=False (0.00s)\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "atmos-check",
+      "1000000003"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: Apple returned no usable asset for this song and account\n"
+    },
+    {
+     "argv": [
+      "atmos-check",
+      "1000000404"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: amp-api.music.apple.com returned HTTP 404\n"
+    },
+    {
+     "argv": [
+      "atmos-check",
+      "https://music.apple.com/zz/song/song-a/1000000001"
+     ],
+     "status": 0,
+     "stdout": "1000000001: atmos=True (0.00s)\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "atmos-check",
+      "song-a"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: Use an Apple Music song link or numeric song ID\n"
+    }
+   ]
+  },
+  {
+   "name": "downmix",
+   "state": {},
+   "cases": [
+    {
+     "argv": [
+      "downmix",
+      "--live"
+     ],
+     "status": 0,
+     "stdout": "current: preset=peqdb preamp=-11.0 dB match=True (from workspace); sink running: True\n  preamp_l:Mult    0.281838\n  dry_l:Gain 1     1\n  dry_l:Gain 2     0.707107\n  dry_l:Gain 3     1\n  out_l:Gain 2     2.26464\n  lfe_lp1:Freq     125\n  dly_l:Delay (s)  0.003338\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "downmix",
+      "apple",
+      "--preamp",
+      "-9"
+     ],
+     "status": 0,
+     "stdout": "applied: preset=apple preamp=-9.0 dB match=True\n  applied to node 38 (atmos_916_downmix)\n   input         L        R\n      FL    1.0000   0.0000\n      FR    0.0000   1.0000\n      FC    0.7071   0.7071\n     LFE    0.0000   0.0000\n      SL    0.7071   0.0000\n      SR    0.0000   0.7071\n      RL    0.7071   0.0000\n      RR    0.0000   0.7071\n     FLW    0.7071   0.0000\n     FRW    0.0000   0.7071\n     TFL    0.7071   0.0000\n     TFR    0.0000   0.7071\n     TSL    0.7071   0.0000\n     TSR    0.0000   0.7071\n     TRL    0.7071   0.0000\n     TRR    0.0000   0.7071\n  LFE low-pass: off, dry delay 0.000 ms, preamp -7.3 dB\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "downmix"
+     ],
+     "status": 0,
+     "stdout": "current: preset=apple preamp=-9.0 dB match=True (from am-ui); sink running: True\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "downmix",
+      "--live"
+     ],
+     "status": 0,
+     "stdout": "current: preset=apple preamp=-9.0 dB match=True (from am-ui); sink running: True\n  preamp_l:Mult    0.431519\n  dry_l:Gain 1     1\n  dry_l:Gain 2     0.707107\n  dry_l:Gain 3     0.707107\n  out_l:Gain 2     0\n  lfe_lp1:Freq     1e+06\n  dly_l:Delay (s)  0\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "downmix",
+      "--preamp",
+      "-6.25"
+     ],
+     "status": 0,
+     "stdout": "applied: preset=apple preamp=-6.2 dB match=True\n  applied to node 38 (atmos_916_downmix)\n   input         L        R\n      FL    1.0000   0.0000\n      FR    0.0000   1.0000\n      FC    0.7071   0.7071\n     LFE    0.0000   0.0000\n      SL    0.7071   0.0000\n      SR    0.0000   0.7071\n      RL    0.7071   0.0000\n      RR    0.0000   0.7071\n     FLW    0.7071   0.0000\n     FRW    0.0000   0.7071\n     TFL    0.7071   0.0000\n     TFR    0.0000   0.7071\n     TSL    0.7071   0.0000\n     TSR    0.0000   0.7071\n     TRL    0.7071   0.0000\n     TRR    0.0000   0.7071\n  LFE low-pass: off, dry delay 0.000 ms, preamp -4.5 dB\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "downmix",
+      "itu"
+     ],
+     "status": 0,
+     "stdout": "applied: preset=itu preamp=-6.2 dB match=True\n  applied to node 38 (atmos_916_downmix)\n   input         L        R\n      FL    1.0000   0.0000\n      FR    0.0000   1.0000\n      FC    0.7071   0.7071\n     LFE    0.3536   0.3536\n      SL    0.7071   0.0000\n      SR    0.0000   0.7071\n      RL    0.7071   0.0000\n      RR    0.0000   0.7071\n     FLW    0.8660   0.0000\n     FRW    0.0000   0.8660\n     TFL    0.5000   0.0000\n     TFR    0.0000   0.5000\n     TSL    0.5000   0.0000\n     TSR    0.0000   0.5000\n     TRL    0.5000   0.0000\n     TRR    0.0000   0.5000\n  LFE low-pass: off, dry delay 0.000 ms, preamp -4.7 dB\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "downmix",
+      "--live",
+      "--list"
+     ],
+     "status": 0,
+     "stdout": "  peqdb     PEQdB              matrix  peqdb Downmix Renderer: every side channel at 1.0, centre -3 dB, LFE +7.1 dB after a 125 Hz 4th-order low-pass (dry channels delayed to stay aligned).\n  apple     Apple fold-down    matrix  macOS's own fold-down (measured): everything but the front pair at -3 dB, LFE dropped.\n  itu       Default (ITU)      matrix  Conservative broadcast-style fold-down (PipeWire's defaults): surrounds -3 dB, wides -1.25 dB, heights -6 dB, LFE 0.354.\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "downmix",
+      "zz"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: unknown downmix preset 'zz'\n"
+    },
+    {
+     "argv": [
+      "downmix",
+      "itu",
+      "--preamp",
+      "30"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: preamp out of range (-60..20 dB)\n"
+    },
+    {
+     "argv": [
+      "downmix",
+      "--preamp",
+      "-61"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: preamp out of range (-60..20 dB)\n"
+    },
+    {
+     "argv": [
+      "downmix",
+      "--live"
+     ],
+     "status": 0,
+     "stdout": "current: preset=itu preamp=-6.2 dB match=True (from am-ui); sink running: True\n  preamp_l:Mult    0.585464\n  dry_l:Gain 1     1\n  dry_l:Gain 2     0.707107\n  dry_l:Gain 3     0.707107\n  out_l:Gain 2     0.353553\n  lfe_lp1:Freq     1e+06\n  dly_l:Delay (s)  0\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "render",
+   "state": {
+    "media": [
+     {
+      "key": "1000000006.atmos",
+      "bytes": 64,
+      "meta": {
+       "duration_s": 0.1,
+       "codec": "eac3"
+      }
+     },
+     {
+      "key": "1000000007.atmos",
+      "bytes": 64,
+      "meta": {}
+     }
+    ],
+    "render_script": "set -eu\nout=$2\necho \"Rendering: stand-in\"\nhead -c 307200 /dev/zero > \"$out/atmos-916.f32le\"\ncat > \"$out/render-summary.json\" <<'EOF'\n{\"frames\": 4800, \"bytes\": 307200, \"channels\": 16, \"sample_rate\": 48000, \"channel_fallback_blocks\": 0, \"nonfinite_samples\": 0, \"elapsed_seconds\": 0.123456, \"realtime_factor\": 23.4567, \"duration_seconds\": 0.1, \"joc_object_count_min\": 11, \"joc_object_count_max\": 15, \"oamd_object_count_min\": 13, \"rendered_object_blocks\": 42, \"channels_stats\": [{\"name\": \"FL\", \"peak\": 0.25, \"nonzero_samples\": 100}, {\"name\": \"FR\", \"peak\": 0.123456789, \"nonzero_samples\": 7}, {\"name\": \"LFE\", \"peak\": 0.5, \"nonzero_samples\": 0}, {\"name\": \"TFL\", \"nonzero_samples\": 0}]}\nEOF\necho \"Finished: stand-in\"\n"
+   },
+   "cases": [
+    {
+     "argv": [
+      "render",
+      "1000000006"
+     ],
+     "status": 0,
+     "stdout": "render 1000000006.atmos -> <var>/cache/pcm/1000000006.atmos\n  t+  0.0s        4800 frames     0.10s (100.0%)\n  done in 0.0s wall; renderer 0.12s = 23.5x real time\n  frames: 4800  duration_s: 0.1  bytes: 307200\n  objects: JOC 11-15, OAMD 13-None; object blocks 42, fallback blocks 0, non-finite 0\n  peak: 0.5000  silent channels: ['LFE', 'TFL']\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "render",
+      "1000000006"
+     ],
+     "status": 0,
+     "stdout": "already rendered: <var>/cache/pcm/1000000006.atmos (4800 frames, 0.100s); use --force to render again\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "render",
+      "1000000006",
+      "--force"
+     ],
+     "status": 0,
+     "stdout": "render 1000000006.atmos -> <var>/cache/pcm/1000000006.atmos\n  t+  0.0s        4800 frames     0.10s (100.0%)\n  done in 0.0s wall; renderer 0.12s = 23.5x real time\n  frames: 4800  duration_s: 0.1  bytes: 307200\n  objects: JOC 11-15, OAMD 13-None; object blocks 42, fallback blocks 0, non-finite 0\n  peak: 0.5000  silent channels: ['LFE', 'TFL']\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "render",
+      "1000000007"
+     ],
+     "status": 0,
+     "stdout": "render 1000000007.atmos -> <var>/cache/pcm/1000000007.atmos\n  t+  0.0s        4800 frames     0.10s (100.0%)\n  done in 0.0s wall; renderer 0.12s = 23.5x real time\n  frames: 4800  duration_s: 0.1  bytes: 307200\n  objects: JOC 11-15, OAMD 13-None; object blocks 42, fallback blocks 0, non-finite 0\n  peak: 0.5000  silent channels: ['LFE', 'TFL']\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "cache"
+     ],
+     "status": 0,
+     "stdout": "media cache <var>/cache/media (128 B of 2.0 GiB):\n  1000000007.atmos               64 B  ?         0.00s    used <time>\n  1000000006.atmos               64 B  eac3      0.10s    used <time>\npcm cache <var>/cache/pcm (keep 3 songs):\n  1000000007.atmos          300.0 KiB  complete  used <time>\n  1000000006.atmos          300.0 KiB  complete  used <time>\nart cache <var>/cache/art: 0 files, 0 B of 256.0 MiB\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "render, a summary with little in it",
+   "state": {
+    "media": [
+     {
+      "key": "1000000006.atmos",
+      "bytes": 64,
+      "meta": {
+       "duration_s": 0.1,
+       "codec": "eac3"
+      }
+     },
+     {
+      "key": "1000000007.atmos",
+      "bytes": 64,
+      "meta": {}
+     }
+    ],
+    "render_script": "set -eu\nout=$2\necho \"Rendering: stand-in\"\nhead -c 307200 /dev/zero > \"$out/atmos-916.f32le\"\ncat > \"$out/render-summary.json\" <<'EOF'\n{\"frames\": 4800, \"bytes\": 307200, \"channels\": 16, \"sample_rate\": 48000, \"elapsed_seconds\": 2, \"channels_stats\": [{\"name\": \"FL\", \"peak\": \"0.5\", \"nonzero_samples\": 1}]}\nEOF\necho \"Finished: stand-in\"\n"
+   },
+   "cases": [
+    {
+     "argv": [
+      "render",
+      "1000000006"
+     ],
+     "status": 0,
+     "stdout": "render 1000000006.atmos -> <var>/cache/pcm/1000000006.atmos\n  t+  0.0s        4800 frames     0.10s (100.0%)\n  done in 0.0s wall; renderer 2.00s = 0.0x real time\n  frames: 4800  duration_s: None  bytes: 307200\n  objects: JOC None-None, OAMD None-None; object blocks None, fallback blocks None, non-finite None\n  peak: 0.5000  silent channels: none\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "render fails",
+   "state": {
+    "media": [
+     {
+      "key": "1000000006.atmos",
+      "bytes": 64,
+      "meta": {
+       "duration_s": 0.1,
+       "codec": "eac3"
+      }
+     },
+     {
+      "key": "1000000007.atmos",
+      "bytes": 64,
+      "meta": {}
+     }
+    ],
+    "render_script": "set -eu\necho \"Rendering: stand-in\"\necho \"Unsupported stream layout\" >&2\nexit 3\n"
+   },
+   "cases": [
+    {
+     "argv": [
+      "render",
+      "1000000006"
+     ],
+     "status": 1,
+     "stdout": "render 1000000006.atmos -> <var>/cache/pcm/1000000006.atmos\n  t+  0.0s           0 frames     0.00s (  0.0%)\n",
+     "stderr": "error: render exited with status 3: Unsupported stream layout\n"
+    },
+    {
+     "argv": [
+      "cache"
+     ],
+     "status": 0,
+     "stdout": "media cache <var>/cache/media (128 B of 2.0 GiB):\n  1000000006.atmos               64 B  eac3      0.10s    used <time>\n  1000000007.atmos               64 B  ?         0.00s    used <time>\npcm cache <var>/cache/pcm (keep 3 songs):\n  1000000006.atmos                0 B  partial   used <time>\nart cache <var>/cache/art: 0 files, 0 B of 256.0 MiB\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "no render script",
+   "state": {
+    "media": [
+     {
+      "key": "1000000006.atmos",
+      "bytes": 64,
+      "meta": {
+       "duration_s": 0.1,
+       "codec": "eac3"
+      }
+     },
+     {
+      "key": "1000000007.atmos",
+      "bytes": 64,
+      "meta": {}
+     }
+    ]
+   },
+   "cases": [
+    {
+     "argv": [
+      "render",
+      "1000000006"
+     ],
+     "status": 1,
+     "stdout": "render 1000000006.atmos -> <var>/cache/pcm/1000000006.atmos\n",
+     "stderr": "error: render script missing: <scratch>/render.sh\n"
+    }
+   ]
+  },
+  {
+   "name": "lossless route, not signed in",
+   "state": {
+    "lossless": {
+     "signed_in": false,
+     "regions": null
+    }
+   },
+   "cases": [
+    {
+     "argv": [
+      "lossless"
+     ],
+     "status": 0,
+     "stdout": "  built            True\n  signed_in_files  False\n  running          False\n  storefronts      []\n  available        False\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n  next: sign in with the Sign In button of the app, or ./am-ui cli connect in a terminal\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lossless",
+      "--start"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: lossless needs Apple's native sign-in: sign in with Connect\n"
+    },
+    {
+     "argv": [
+      "lossless",
+      "--check",
+      "1000000001"
+     ],
+     "status": 1,
+     "stdout": "  built            True\n  signed_in_files  False\n  running          False\n  storefronts      []\n  available        False\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n  next: sign in with the Sign In button of the app, or ./am-ui cli connect in a terminal\n",
+     "stderr": "error: lossless needs Apple's native sign-in: sign in with Connect\n"
+    },
+    {
+     "argv": [
+      "acquire",
+      "1000000001",
+      "--lossless"
+     ],
+     "status": 1,
+     "stdout": "acquire 1000000001 (lossless)\n",
+     "stderr": "error: lossless needs Apple's native sign-in: sign in with Connect\n"
+    }
+   ]
+  },
+  {
+   "name": "lossless route, service signed out",
+   "state": {
+    "lossless": {
+     "signed_in": true,
+     "regions": []
+    }
+   },
+   "cases": [
+    {
+     "argv": [
+      "lossless"
+     ],
+     "status": 0,
+     "stdout": "  built            True\n  signed_in_files  True\n  running          True\n  storefronts      []\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lossless",
+      "--start"
+     ],
+     "status": 1,
+     "stdout": "",
+     "stderr": "error: the lossless service is running but not signed in: sign in with Connect\n"
+    }
+   ]
+  },
+  {
+   "name": "lossless route, running",
+   "state": {
+    "lossless": {
+     "signed_in": true,
+     "regions": [
+      "100000"
+     ],
+     "dispatch": {
+      "adamId": "1000000001",
+      "m3u8": "https://aod.itunes.apple.com/itunes-assets/HLSMusic/v4/ij/kl/P3000_default.m3u8"
+     }
+    }
+   },
+   "cases": [
+    {
+     "argv": [
+      "lossless"
+     ],
+     "status": 0,
+     "stdout": "  built            True\n  signed_in_files  True\n  running          True\n  storefronts      ['100000']\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lossless",
+      "--start"
+     ],
+     "status": 0,
+     "stdout": "service running; storefronts: 100000\n  built            True\n  signed_in_files  True\n  running          True\n  storefronts      ['100000']\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lossless",
+      "--check",
+      "1000000001"
+     ],
+     "status": 0,
+     "stdout": "  built            True\n  signed_in_files  True\n  running          True\n  storefronts      ['100000']\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n1000000001: 4 ALAC rendition(s)\n    audio-alac-stereo-44100-16       16-bit/44100 Hz  avg 899 kbps\n  * audio-alac-stereo-48000-24       24-bit/48000 Hz  avg 1995 kbps\n    audio-alac-stereo-96000-24       24-bit/96000 Hz  avg 3799 kbps\n    audio-alac-stereo-192000-24      24-bit/192000 Hz  avg 7000 kbps\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lossless",
+      "--start",
+      "--check",
+      "https://music.apple.com/zz/song/song-a/1000000001"
+     ],
+     "status": 0,
+     "stdout": "service running; storefronts: 100000\n  built            True\n  signed_in_files  True\n  running          True\n  storefronts      ['100000']\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n1000000001: 4 ALAC rendition(s)\n    audio-alac-stereo-44100-16       16-bit/44100 Hz  avg 899 kbps\n  * audio-alac-stereo-48000-24       24-bit/48000 Hz  avg 1995 kbps\n    audio-alac-stereo-96000-24       24-bit/96000 Hz  avg 3799 kbps\n    audio-alac-stereo-192000-24      24-bit/192000 Hz  avg 7000 kbps\n",
+     "stderr": ""
+    },
+    {
+     "argv": [
+      "lossless",
+      "--check",
+      "song-a"
+     ],
+     "status": 1,
+     "stdout": "  built            True\n  signed_in_files  True\n  running          True\n  storefronts      ['100000']\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n",
+     "stderr": "error: Use an Apple Music song link or numeric song ID\n"
+    }
+   ]
+  },
+  {
+   "name": "lossless route, a song without a lossless playlist",
+   "state": {
+    "lossless": {
+     "signed_in": true,
+     "regions": [
+      "100000",
+      "100001"
+     ],
+     "dispatch": {
+      "m3u8": "https://aod.itunes.apple.com/itunes-assets/HLSMusic/v4/mn/op/P4000_default.m3u8"
+     }
+    }
+   },
+   "cases": [
+    {
+     "argv": [
+      "lossless",
+      "--check",
+      "1000000002"
+     ],
+     "status": 0,
+     "stdout": "  built            True\n  signed_in_files  True\n  running          True\n  storefronts      ['100000', '100001']\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n1000000002: 0 ALAC rendition(s)\n",
+     "stderr": ""
+    }
+   ]
+  },
+  {
+   "name": "lossless route, a song that is only an AAC file",
+   "state": {
+    "lossless": {
+     "signed_in": true,
+     "regions": [
+      "100000"
+     ],
+     "dispatch": {
+      "m3u8": "https://streamingaudio.itunes.apple.com/itunes-assets/Music/v4/ab/cd/mzaf_1000.aac.a.m4p?accessKey=k"
+     }
+    }
+   },
+   "cases": [
+    {
+     "argv": [
+      "lossless",
+      "--check",
+      "1000000002"
+     ],
+     "status": 1,
+     "stdout": "  built            True\n  signed_in_files  True\n  running          True\n  storefronts      ['100000']\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n",
+     "stderr": "error: Apple offers no lossless (ALAC) rendition for this song\n"
+    }
+   ]
+  },
+  {
+   "name": "lossless route, a service without an answer for the song",
+   "state": {
+    "lossless": {
+     "signed_in": true,
+     "regions": [
+      "100000"
+     ]
+    }
+   },
+   "cases": [
+    {
+     "argv": [
+      "lossless",
+      "--check",
+      "1000000002"
+     ],
+     "status": 1,
+     "stdout": "  built            True\n  signed_in_files  True\n  running          True\n  storefronts      ['100000']\n  available        True\n  backoff_s        0.0\n  max_sample_rate  48000\n  url              http://127.0.0.1:9\n",
+     "stderr": "error: the lossless service returned no playlist for this song\n"
+    }
+   ]
+  }
+ ],
+ "values": {
+  "clip": [
+   {
+    "text": "Song A",
+    "width": 48,
+    "clipped": "Song A"
+   },
+   {
+    "text": "",
+    "width": 5,
+    "clipped": ""
+   },
+   {
+    "text": "exactly five",
+    "width": 12,
+    "clipped": "exactly five"
+   },
+   {
+    "text": "exactly five",
+    "width": 11,
+    "clipped": "exactly fi…"
+   },
+   {
+    "text": "two\nlines",
+    "width": 48,
+    "clipped": "two lines"
+   },
+   {
+    "text": "two\nlines",
+    "width": 5,
+    "clipped": "two …"
+   },
+   {
+    "text": "Álbum Ñ",
+    "width": 6,
+    "clipped": "Álbum…"
+   },
+   {
+    "text": "Álbum Ñ",
+    "width": 7,
+    "clipped": "Álbum Ñ"
+   },
+   {
+    "text": "ab",
+    "width": 1,
+    "clipped": "…"
+   },
+   {
+    "text": "abc",
+    "width": 2,
+    "clipped": "a…"
+   }
+  ],
+  "table": [
+   {
+    "headers": [
+     "key",
+     "name",
+     "artist",
+     "count"
+    ],
+    "rows": [
+     [
+      "l.AbCdEf1",
+      "Album A",
+      "Artist A",
+      "12"
+     ]
+    ],
+    "widths": [
+     24,
+     48,
+     32,
+     6
+    ],
+    "printed": "key        name     artist    count\n---------  -------  --------  -----\nl.AbCdEf1  Album A  Artist A  12   \n"
+   },
+   {
+    "headers": [
+     "key",
+     "name",
+     "artist",
+     "count"
+    ],
+    "rows": [],
+    "widths": [
+     24,
+     48,
+     32,
+     6
+    ],
+    "printed": "  (none)\n"
+   },
+   {
+    "headers": [
+     "#",
+     "name",
+     "artist",
+     "time",
+     "catalog id",
+     "audio"
+    ],
+    "rows": [
+     [
+      "1",
+      "Song A",
+      "Artist A",
+      "3:21",
+      "1000000001",
+      "atmos"
+     ],
+     [
+      "10",
+      "A name that goes on for much longer than the forty-eight characters a column has",
+      "",
+      "",
+      "(unavailable)",
+      "?"
+     ]
+    ],
+    "widths": [
+     4,
+     48,
+     32,
+     6,
+     14,
+     6
+    ],
+    "printed": "#   name                                              artist    time  catalog id     audio\n--  ------------------------------------------------  --------  ----  -------------  -----\n1   Song A                                            Artist A  3:21  1000000001     atmos\n10  A name that goes on for much longer than the fo…                  (unavailable)  ?    \n"
+   },
+   {
+    "headers": [
+     "title",
+     "items",
+     "kinds"
+    ],
+    "rows": [
+     [
+      "Ünïcödé",
+      "3",
+      "album, playlist"
+     ],
+     [
+      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "12345678",
+      ""
+     ]
+    ],
+    "widths": [
+     48,
+     6,
+     24
+    ],
+    "printed": "title                                             items   kinds          \n------------------------------------------------  ------  ---------------\nÜnïcödé                                           3       album, playlist\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…  12345…                 \n"
+   },
+   {
+    "headers": [
+     "a",
+     "b"
+    ],
+    "rows": [
+     [
+      "",
+      ""
+     ],
+     [
+      "wide cell here",
+      "y"
+     ]
+    ],
+    "widths": null,
+    "printed": "a               b\n--------------  -\n                 \nwide cell here  y\n"
+   }
+  ],
+  "mmss": [
+   {
+    "ms": null,
+    "text": ""
+   },
+   {
+    "ms": 0,
+    "text": "0:00"
+   },
+   {
+    "ms": 999,
+    "text": "0:00"
+   },
+   {
+    "ms": 1000,
+    "text": "0:01"
+   },
+   {
+    "ms": 59999,
+    "text": "0:59"
+   },
+   {
+    "ms": 60000,
+    "text": "1:00"
+   },
+   {
+    "ms": 201000,
+    "text": "3:21"
+   },
+   {
+    "ms": 3599000,
+    "text": "59:59"
+   },
+   {
+    "ms": 3600000,
+    "text": "60:00"
+   },
+   {
+    "ms": 86400000,
+    "text": "1440:00"
+   },
+   {
+    "ms": -1,
+    "text": "-1:59"
+   },
+   {
+    "ms": -60001,
+    "text": "-2:59"
+   }
+  ],
+  "hms": [
+   {
+    "seconds": null,
+    "text": "   --   "
+   },
+   {
+    "seconds": 0.0,
+    "text": "00:00.000"
+   },
+   {
+    "seconds": 0.0004,
+    "text": "00:00.000"
+   },
+   {
+    "seconds": 1.0,
+    "text": "00:01.000"
+   },
+   {
+    "seconds": 5.25,
+    "text": "00:05.250"
+   },
+   {
+    "seconds": 59.9994,
+    "text": "00:59.999"
+   },
+   {
+    "seconds": 59.9996,
+    "text": "00:60.000"
+   },
+   {
+    "seconds": 60.0,
+    "text": "01:00.000"
+   },
+   {
+    "seconds": 65.25,
+    "text": "01:05.250"
+   },
+   {
+    "seconds": 599.999,
+    "text": "09:59.999"
+   },
+   {
+    "seconds": 3599.5,
+    "text": "59:59.500"
+   },
+   {
+    "seconds": 6000.125,
+    "text": "100:00.125"
+   },
+   {
+    "seconds": -3.0,
+    "text": "00:00.000"
+   }
+  ],
+  "fmt_bytes": [
+   {
+    "size": 0,
+    "text": "0 B"
+   },
+   {
+    "size": 1,
+    "text": "1 B"
+   },
+   {
+    "size": 1023,
+    "text": "1023 B"
+   },
+   {
+    "size": 1024,
+    "text": "1.0 KiB"
+   },
+   {
+    "size": 1536,
+    "text": "1.5 KiB"
+   },
+   {
+    "size": 4096,
+    "text": "4.0 KiB"
+   },
+   {
+    "size": 1048575,
+    "text": "1024.0 KiB"
+   },
+   {
+    "size": 1048576,
+    "text": "1.0 MiB"
+   },
+   {
+    "size": 1500000,
+    "text": "1.4 MiB"
+   },
+   {
+    "size": 268435456,
+    "text": "256.0 MiB"
+   },
+   {
+    "size": 1073741823,
+    "text": "1024.0 MiB"
+   },
+   {
+    "size": 1073741824,
+    "text": "1.0 GiB"
+   },
+   {
+    "size": 2147483648,
+    "text": "2.0 GiB"
+   },
+   {
+    "size": 5497558138880,
+    "text": "5120.0 GiB"
+   }
+  ],
+  "song_id": [
+   {
+    "value": "1000000001",
+    "id": "1000000001"
+   },
+   {
+    "value": "0",
+    "id": "0"
+   },
+   {
+    "value": "",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": " 1000000001",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": "1000000001\n",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": "١٢٣",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": "12a",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": "https://music.apple.com/zz/song/song-a/1000000001",
+    "id": "1000000001"
+   },
+   {
+    "value": "https://music.apple.com/zz/song/song-a/1000000001/",
+    "id": "1000000001"
+   },
+   {
+    "value": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002",
+    "id": "1000000002"
+   },
+   {
+    "value": "https://music.apple.com/zz/album/album-a/1000000010?i=1000000002&l=en",
+    "id": "1000000002"
+   },
+   {
+    "value": "https://music.apple.com/zz/album/album-a/1000000010?i=&i=1000000003",
+    "id": "1000000003"
+   },
+   {
+    "value": "https://music.apple.com/zz/album/album-a/1000000010?i=%31%32",
+    "id": "12"
+   },
+   {
+    "value": "https://music.apple.com/zz/album/album-a/1000000010",
+    "error": "Use a single song link, or an album link with an ?i= song selection"
+   },
+   {
+    "value": "https://music.apple.com/zz/album/album-a/1000000010?i=abc",
+    "error": "Use a single song link, or an album link with an ?i= song selection"
+   },
+   {
+    "value": "https://music.apple.com/zz/album/album-a/1000000010#i=5",
+    "error": "Use a single song link, or an album link with an ?i= song selection"
+   },
+   {
+    "value": "https://music.apple.com/zz/playlist/list-p/pl.abc123",
+    "error": "Use a single song link, or an album link with an ?i= song selection"
+   },
+   {
+    "value": "https://music.apple.com/song/1000000001",
+    "error": "Use a single song link, or an album link with an ?i= song selection"
+   },
+   {
+    "value": "https://music.apple.com/zz/song/1000000001",
+    "id": "1000000001"
+   },
+   {
+    "value": "https://music.apple.com/zz/song/song-a/x1",
+    "error": "Use a single song link, or an album link with an ?i= song selection"
+   },
+   {
+    "value": "https://beta.music.apple.com/zz/song/song-a/1000000001",
+    "id": "1000000001"
+   },
+   {
+    "value": "HTTPS://MUSIC.APPLE.COM/zz/song/song-a/1000000001",
+    "id": "1000000001"
+   },
+   {
+    "value": "http://music.apple.com/zz/song/song-a/1000000001",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": "https://example.com/zz/song/song-a/1000000001",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": "https://music.apple.com.example.com/zz/song/song-a/1000000001",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": "music.apple.com/zz/song/song-a/1000000001",
+    "error": "Use an Apple Music song link or numeric song ID"
+   },
+   {
+    "value": "https://music.apple.com:443/zz/song/song-a/1000000001",
+    "id": "1000000001"
+   },
+   {
+    "value": "song-a",
+    "error": "Use an Apple Music song link or numeric song ID"
+   }
+  ],
+  "report": "\nA section\n  ok       one                                there\n  MISSING  two                                needed\n  absent   three                              nice to have\n  absent   four                               \n  MISSING  an item with a name longer than its column x\n\nAnother (with: details)\n  ok       ffmpeg                             /usr/bin/ffmpeg — no libsoxr (resampling falls back to swr)\nmissing: 2\n",
+  "acquire_progress": {
+   "reports": [
+    [
+     "manifest",
+     null
+    ],
+    [
+     "license",
+     null
+    ],
+    [
+     "license",
+     null
+    ],
+    [
+     "download",
+     0.0
+    ],
+    [
+     "download",
+     0.04
+    ],
+    [
+     "download",
+     0.1
+    ],
+    [
+     "download",
+     0.19
+    ],
+    [
+     "download",
+     0.5
+    ],
+    [
+     "download",
+     0.55
+    ],
+    [
+     "download",
+     0.999
+    ],
+    [
+     "download",
+     1.0
+    ],
+    [
+     "download",
+     1.0
+    ],
+    [
+     "download",
+     null
+    ],
+    [
+     "decrypt",
+     null
+    ],
+    [
+     "decrypt",
+     null
+    ],
+    [
+     "download",
+     0.3
+    ],
+    [
+     "done",
+     1.0
+    ]
+   ],
+   "step": 0.26,
+   "printed": "  manifest         t+0.3s\n  license          t+0.5s\n  download    0.0%  t+0.8s\n  download   10.0%  t+1.0s\n  download   50.0%  t+1.3s\n  download   99.9%  t+1.6s\n  download  100.0%  t+1.8s\n  decrypt          t+2.1s\n  download   30.0%  t+2.3s\n  done             t+2.6s\n"
+  },
+  "python_text": [
+   {
+    "value": null,
+    "str": "None",
+    "repr": "None"
+   },
+   {
+    "value": true,
+    "str": "True",
+    "repr": "True"
+   },
+   {
+    "value": false,
+    "str": "False",
+    "repr": "False"
+   },
+   {
+    "value": 0,
+    "str": "0",
+    "repr": "0"
+   },
+   {
+    "value": -7,
+    "str": "-7",
+    "repr": "-7"
+   },
+   {
+    "value": 48000,
+    "str": "48000",
+    "repr": "48000"
+   },
+   {
+    "value": 18446744073709551615,
+    "str": "18446744073709551615",
+    "repr": "18446744073709551615"
+   },
+   {
+    "value": 2.0,
+    "str": "2.0",
+    "repr": "2.0"
+   },
+   {
+    "value": 201.386667,
+    "str": "201.386667",
+    "repr": "201.386667"
+   },
+   {
+    "value": 59.999,
+    "str": "59.999",
+    "repr": "59.999"
+   },
+   {
+    "value": 0.5,
+    "str": "0.5",
+    "repr": "0.5"
+   },
+   {
+    "value": -0.0,
+    "str": "-0.0",
+    "repr": "-0.0"
+   },
+   {
+    "value": 0.30000000000000004,
+    "str": "0.30000000000000004",
+    "repr": "0.30000000000000004"
+   },
+   {
+    "value": 1000000000000000.0,
+    "str": "1000000000000000.0",
+    "repr": "1000000000000000.0"
+   },
+   {
+    "value": 1e+16,
+    "str": "1e+16",
+    "repr": "1e+16"
+   },
+   {
+    "value": 1.5e+16,
+    "str": "1.5e+16",
+    "repr": "1.5e+16"
+   },
+   {
+    "value": 1.2345678901234568e+17,
+    "str": "1.2345678901234568e+17",
+    "repr": "1.2345678901234568e+17"
+   },
+   {
+    "value": 0.0001,
+    "str": "0.0001",
+    "repr": "0.0001"
+   },
+   {
+    "value": 1e-05,
+    "str": "1e-05",
+    "repr": "1e-05"
+   },
+   {
+    "value": 1.5e-05,
+    "str": "1.5e-05",
+    "repr": "1.5e-05"
+   },
+   {
+    "value": 1e+100,
+    "str": "1e+100",
+    "repr": "1e+100"
+   },
+   {
+    "value": 1e-100,
+    "str": "1e-100",
+    "repr": "1e-100"
+   },
+   {
+    "value": 5e-324,
+    "str": "5e-324",
+    "repr": "5e-324"
+   },
+   {
+    "value": 1.7976931348623157e+308,
+    "str": "1.7976931348623157e+308",
+    "repr": "1.7976931348623157e+308"
+   },
+   {
+    "value": "Song A",
+    "str": "Song A",
+    "repr": "'Song A'"
+   },
+   {
+    "value": "it's",
+    "str": "it's",
+    "repr": "\"it's\""
+   },
+   {
+    "value": "say \"hi\"",
+    "str": "say \"hi\"",
+    "repr": "'say \"hi\"'"
+   },
+   {
+    "value": "it's \"both\"",
+    "str": "it's \"both\"",
+    "repr": "'it\\'s \"both\"'"
+   },
+   {
+    "value": "",
+    "str": "",
+    "repr": "''"
+   },
+   {
+    "value": "tab\there",
+    "str": "tab\there",
+    "repr": "'tab\\there'"
+   },
+   {
+    "value": "é",
+    "str": "é",
+    "repr": "'é'"
+   },
+   {
+    "value": [],
+    "str": "[]",
+    "repr": "[]"
+   },
+   {
+    "value": {},
+    "str": "{}",
+    "repr": "{}"
+   },
+   {
+    "value": [
+     "LFE",
+     "TFL"
+    ],
+    "str": "['LFE', 'TFL']",
+    "repr": "['LFE', 'TFL']"
+   },
+   {
+    "value": [
+     null,
+     1,
+     1.5,
+     [
+      true
+     ],
+     {
+      "a": "b"
+     }
+    ],
+    "str": "[None, 1, 1.5, [True], {'a': 'b'}]",
+    "repr": "[None, 1, 1.5, [True], {'a': 'b'}]"
+   },
+   {
+    "value": {
+     "audio_group": "audio-atmos-2768",
+     "codecs": "ec-3",
+     "bandwidth": "772001"
+    },
+    "str": "{'audio_group': 'audio-atmos-2768', 'codecs': 'ec-3', 'bandwidth': '772001'}",
+    "repr": "{'audio_group': 'audio-atmos-2768', 'codecs': 'ec-3', 'bandwidth': '772001'}"
+   },
+   {
+    "value": {
+     "bandwidth": null,
+     "sample_rate": 48000,
+     "bit_depth": 24,
+     "nested": {
+      "list": [
+       1.0,
+       "x"
+      ]
+     }
+    },
+    "str": "{'bandwidth': None, 'sample_rate': 48000, 'bit_depth': 24, 'nested': {'list': [1.0, 'x']}}",
+    "repr": "{'bandwidth': None, 'sample_rate': 48000, 'bit_depth': 24, 'nested': {'list': [1.0, 'x']}}"
+   }
+  ]
+ }
+}

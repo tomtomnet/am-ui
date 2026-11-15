@@ -1,0 +1,21 @@
+[Unit]
+Description=Apple Music: the Atmos 9.1.6 downmix (its own PipeWire client, so the desktop's mixer shows the music)
+# starts and stops with PipeWire, as WirePlumber does: a PipeWire restart brings it back
+After=pipewire.service
+BindsTo=pipewire.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/pipewire -c applemusic-downmix.conf
+Restart=on-failure
+Slice=session.slice
+# as PipeWire's own filter-chain.service
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=pipewire.service

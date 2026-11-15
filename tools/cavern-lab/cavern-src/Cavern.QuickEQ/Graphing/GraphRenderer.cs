@@ -1,0 +1,208 @@
+﻿using System;
+using System.Collections.Generic;
+
+using Cavern.QuickEQ.Equalization;
+using Cavern.QuickEQ.Graphing.Overlays;
+using Cavern.QuickEQ.Utilities;
+
+namespace Cavern.QuickEQ.Graphing {
+    /// <summary>
+    /// Draws multiple <see cref="Equalizer"/> curves on a single canvas.
+    /// </summary>
+    public class GraphRenderer : DrawableMeasurement {
+        /// <inheritdoc/>
+        public override DrawableMeasurementType Type => DrawableMeasurementType.Graph;
+
+        /// <summary>
+        /// The difference between the highest and lowest displayed values in decibels.
+        /// </summary>
+        public float DynamicRange {
+            get => dynamicRange;
+            set {
+                dynamicRange = value;
+                ReRender();
+            }
+        }
+        float dynamicRange = 30;
+
+        /// <summary>
+        /// Maximum value to display in decibels.
+        /// </summary>
+        public float Peak {
+            get => peak;
+            set {
+                peak = value;
+                ReRender();
+            }
+        }
+        float peak = 6;
+
+        /// <summary>
+        /// Show a constant value over the limits of the displayed curve.
+        /// </summary>
+        public bool Extend {
+            get => extend;
+            set {
+                extend = value;
+                ReRender();
+            }
+        }
+        bool extend = true;
+
+        /// <summary>
+        /// The top and bottom will be moved towards the center by this many decibels.
+        /// </summary>
+        public float Padding {
+            get {
+                // The default padding is just for preventing the frame overwriting the curve
+                if (padding == 0 && Overlay is Frame frame) {
+                    padding = dynamicRange - dynamicRange * Height / (Height + 2 * frame.Width);
+                }
+                return padding;
+            }
+            set {
+                padding = value;
+                ReRender();
+            }
+        }
+        float padding;
+
+        /// <summary>
+        /// Draw the curves in reverse order, so the earlier curves are shown on top.
+        /// </summary>
+        public bool ReverseOrder { get; set; } = true;
+
+        /// <summary>
+        /// List of displayed curves in overdrawing order.
+        /// </summary>
+        protected IReadOnlyList<RenderedCurve> Curves => curves;
+        readonly List<RenderedCurve> curves = new List<RenderedCurve>();
+
+        /// <summary>
+        /// Draws multiple <see cref="Equalizer"/> curves on a single canvas.
+        /// </summary>
+        public GraphRenderer(int width, int height) : base(width, height) { }
+
+        /// <summary>
+        /// Draws multiple <see cref="Equalizer"/> curves on a single canvas.
+        /// </summary>
+        public GraphRenderer(int width, int height, float startFreq, float endFreq, bool logarithmic) : base(width, height, startFreq, endFreq, logarithmic) { }
+
+        /// <inheritdoc/>
+        public override void Clear() {
+            curves.Clear();
+            DrawAll();
+        }
+
+        /// <summary>
+        /// Set the <see cref="peak"/> to the max displayed gain.
+        /// </summary>
+        public virtual void Normalize() {
+            double curvePeak = double.NegativeInfinity;
+            for (int i = 0, c = curves.Count; i < c; i++) {
+                double localPeak = curves[i].Curve.PeakGain;
+                if (curvePeak < localPeak) {
+                    curvePeak = localPeak;
+                }
+            }
+            Peak = double.IsNegativeInfinity(curvePeak) ? 0 : (float)curvePeak;
+            ReRenderFull();
+        }
+
+        /// <summary>
+        /// Add a <paramref name="curve"/> with an ARGB <paramref name="color"/>.
+        /// </summary>
+        public RenderedCurve AddCurve(Equalizer curve, uint color) => AddCurve(curve, color, true);
+
+        /// <summary>
+        /// Add multiple curves with their respective ARGB colors.
+        /// </summary>
+        /// <param name="curves">Curves to draw with their corresponding colors</param>
+        /// <param name="normalize">Set the <see cref="Peak"/> to the highest value of any curve</param>
+        /// <remarks>This is the recommended method for adding multiple curves at once as this doesn't re-render for each one.</remarks>
+        public void AddCurves((Equalizer curve, uint color)[] curves, bool normalize) {
+            for (int i = 0; i < curves.Length; i++) {
+                AddCurve(curves[i].curve, curves[i].color, false);
+            }
+            if (normalize) {
+                Normalize();
+            } else {
+                ReRenderFull();
+            }
+        }
+
+        /// <summary>
+        /// Add multiple curves with their respective ARGB colors and point displays.
+        /// </summary>
+        /// <param name="curves">Curves to draw with their corresponding colors</param>
+        /// <param name="normalize">Set the <see cref="Peak"/> to the highest value of any curve</param>
+        /// <remarks>This is the recommended method for adding multiple curves at once as this doesn't re-render for each one.</remarks>
+        public void AddCurves((Equalizer curve, uint color, ARGBImage pointDisplay)[] curves, bool normalize) {
+            for (int i = 0; i < curves.Length; i++) {
+                AddCurve(curves[i].curve, curves[i].color, false).pointDisplay = curves[i].pointDisplay;
+            }
+            if (normalize) {
+                Normalize();
+            } else {
+                ReRenderFull();
+            }
+        }
+
+        /// <summary>
+        /// Get what gain corresponds to a given subpixel position on the height axis, relative to the peak gain.
+        /// </summary>
+        public float GetGainAt(float height) => peak - height / Height * dynamicRange;
+
+        /// <inheritdoc/>
+        protected override void ReRender() {
+            int c = curves.Count;
+            if (c == 0) {
+                for (int i = 0; i < c; i++) {
+                    curves[i].ReRender();
+                }
+            }
+            DrawAll();
+        }
+
+        /// <inheritdoc/>
+        protected override void ReRenderFull() {
+            for (int i = 0, c = curves.Count; i < c; i++) {
+                curves[i].ReRenderFull();
+            }
+            DrawAll();
+        }
+
+        /// <summary>
+        /// Redraw the entire image.
+        /// </summary>
+        internal void DrawAll() {
+            Array.Clear(Pixels, 0, Pixels.Length);
+            Overlay?.DrawBehind(this);
+            if (ReverseOrder) {
+                for (int i = curves.Count - 1; i >= 0; i--) {
+                    curves[i].DrawOver(this, 0, 0);
+                }
+            } else {
+                for (int i = 0, c = curves.Count; i < c; i++) {
+                    curves[i].DrawOver(this, 0, 0);
+                }
+            }
+            Overlay?.DrawOn(this);
+        }
+
+        /// <summary>
+        /// Add a curve with an ARGB color, with the option not to draw it instantly.
+        /// </summary>
+        RenderedCurve AddCurve(Equalizer curve, uint color, bool redraw) {
+            RenderedCurve entry = new RenderedCurve(curve, this) {
+                Color = color
+            };
+            curves.Add(entry);
+            if (redraw) {
+                entry.ReRenderFull();
+                DrawAll();
+            }
+            return entry;
+        }
+    }
+}

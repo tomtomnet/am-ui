@@ -1,0 +1,110 @@
+am-ui lossless route: enforce TLS certificate verification inside Apple's bundled libcurl.so.
+
+The account (AuthenticateFlow), bag and FairPlay requests of libstoreservicescore/libandroidappmusic
+go through the Android libcurl in rootfs/system/lib64, which has no CA store there. On 2026-11-08 the
+credential-free probe tools/lossless/probe-tls.py observed the bag fetch to init.itunes.apple.com
+complete a TLS 1.3 handshake with a self-signed certificate and send 213 bytes of HTTP (3 times),
+while the wrapper's own curl path (patch 0001) rejected it with TLSV1_ALERT_UNKNOWN_CA.
+
+This patch turns the upstream debug-only curl_easy_setopt hook into an always-on policy: every handle
+gets CURLOPT_SSL_VERIFYPEER=1, CURLOPT_SSL_VERIFYHOST=2 and CURLOPT_CAINFO=/system/etc/
+workspace-ca-bundle.pem right before curl_easy_perform / curl_multi_add_handle; downgrades through
+curl_easy_setopt are refused; CURLOPT_CAPATH is dropped; the process exits if the hooks cannot be
+installed. Pinned public keys the library sets (CURLOPT_PINNEDPUBLICKEY) are left in place.
+Applies on top of 0001 and 0002.
+
+--- a/lite/bridge.cpp
++++ b/lite/bridge.cpp
+@@ -155,6 +155,34 @@
+ static int (*orig_log_print)(int prio, const char *tag, const char *fmt, ...);
+ static int (*orig_log_write)(int prio, const char *tag, const char *text);
+ static int (*orig_curl_easy_setopt)(void *curl, int32_t option, ...);
++static int (*orig_curl_easy_perform)(void *curl);
++static int (*orig_curl_multi_add_handle)(void *multi, void *curl);
++extern "C" int curl_multi_add_handle(void *multi, void *curl);
++
++/* am-ui TLS policy for Apple's bundled libcurl, which the account and FairPlay
++   libraries use and which has no CA store in this rootfs. A credential-free
++   probe (tools/lossless/probe-tls.py) showed their bag fetch to
++   init.itunes.apple.com completing a TLS handshake with an untrusted
++   certificate and sending its request. The policy: peer and hostname
++   verification against the runtime's CA bundle, applied to every handle right
++   before each transfer (easy and multi interface), and no downgrade through
++   curl_easy_setopt. Transfers are refused when the policy cannot be applied. */
++static const char* const kTlsCaBundle = "/system/etc/workspace-ca-bundle.pem";
++constexpr int32_t kOptVerifyPeer = 64;     /* CURLOPT_SSL_VERIFYPEER */
++constexpr int32_t kOptVerifyHost = 81;     /* CURLOPT_SSL_VERIFYHOST */
++constexpr int32_t kOptCaInfo = 10065;      /* CURLOPT_CAINFO */
++constexpr int32_t kOptCaPath = 10097;      /* CURLOPT_CAPATH */
++constexpr int kCurleSslCacertBadfile = 77; /* CURLE_SSL_CACERT_BADFILE */
++constexpr int kCurlmBadEasyHandle = 2;     /* CURLM_BAD_EASY_HANDLE */
++
++static int enforce_tls_policy(void* curl) {
++    if (!curl || !orig_curl_easy_setopt) return kCurleSslCacertBadfile;
++    int rc = orig_curl_easy_setopt(curl, kOptVerifyPeer, 1L);
++    if (rc == 0) rc = orig_curl_easy_setopt(curl, kOptVerifyHost, 2L);
++    if (rc == 0) rc = orig_curl_easy_setopt(curl, kOptCaInfo, kTlsCaBundle);
++    if (rc != 0) LOG_ERROR("tls policy: curl_easy_setopt failed (%d); refusing the transfer", rc);
++    return rc;
++}
+ 
+ static uint8_t allDebug() { return 1; }
+ 
+@@ -180,12 +208,30 @@
+     va_start(args, option);
+     void* param = va_arg(args, void*);
+     va_end(args);
+-    if (g_ssl_verify_disabled && (option == 64 || option == 81 || option == 10230)) {
+-        LOG_DEBUG("hooked curl_easy_setopt %d (SSL verify disabled)", option);
+-        orig_curl_easy_setopt(curl, 43, 1L);
+-        return orig_curl_easy_setopt(curl, option, 0L);
++    switch (option) {
++    case kOptVerifyPeer:
++        if ((long)(intptr_t)param != 1L) LOG_DEBUG("tls policy: refused CURLOPT_SSL_VERIFYPEER=%ld", (long)(intptr_t)param);
++        return orig_curl_easy_setopt(curl, option, 1L);
++    case kOptVerifyHost:
++        if ((long)(intptr_t)param != 2L) LOG_DEBUG("tls policy: refused CURLOPT_SSL_VERIFYHOST=%ld", (long)(intptr_t)param);
++        return orig_curl_easy_setopt(curl, option, 2L);
++    case kOptCaInfo:
++        return orig_curl_easy_setopt(curl, option, kTlsCaBundle);
++    case kOptCaPath:
++        return 0; /* CURLE_OK: the bundle file is the only trust source */
++    default:
++        return orig_curl_easy_setopt(curl, option, param);
+     }
+-    return orig_curl_easy_setopt(curl, option, param);
++}
++
++int curl_easy_perform_hook(void *curl) {
++    if (enforce_tls_policy(curl) != 0) return kCurleSslCacertBadfile;
++    return orig_curl_easy_perform(curl);
++}
++
++int curl_multi_add_handle_hook(void *multi, void *curl) {
++    if (enforce_tls_policy(curl) != 0) return kCurlmBadEasyHandle;
++    return orig_curl_multi_add_handle(multi, curl);
+ }
+ 
+ void install_hooks() {
+@@ -196,8 +242,19 @@
+               (void*)&allDebug, (void**)&orig_debug_log_enabled);
+     DobbyHook((void*)&__android_log_print, (void*)&log_print_hook, (void**)&orig_log_print);
+     DobbyHook((void*)&__android_log_write, (void*)&log_write_hook, (void**)&orig_log_write);
+-    if (g_ssl_verify_disabled) {
+-        DobbyHook((void*)&curl_easy_setopt, (void*)&curl_easy_setopt_hook, (void**)&orig_curl_easy_setopt);
++    /* TLS policy hooks are mandatory: without them Apple's libcurl runs unverified. */
++    if (DobbyHook((void*)&curl_easy_setopt, (void*)&curl_easy_setopt_hook, (void**)&orig_curl_easy_setopt) != 0 ||
++        DobbyHook((void*)&curl_easy_perform, (void*)&curl_easy_perform_hook, (void**)&orig_curl_easy_perform) != 0 ||
++        DobbyHook((void*)&curl_multi_add_handle, (void*)&curl_multi_add_handle_hook,
++                  (void**)&orig_curl_multi_add_handle) != 0 ||
++        !orig_curl_easy_setopt || !orig_curl_easy_perform || !orig_curl_multi_add_handle) {
++        LOG_ERROR("tls policy: could not hook Apple's libcurl; refusing to run unverified");
++        _exit(1);
++    }
++    if (access(kTlsCaBundle, R_OK) != 0) {
++        LOG_ERROR("tls policy: CA bundle %s is missing; every Apple request will fail", kTlsCaBundle);
++    } else {
++        LOG_INFO("tls policy: certificate verification enforced for Apple's libcurl (%s)", kTlsCaBundle);
+     }
+     LOG_DEBUG("debug hooks installed");
+ }

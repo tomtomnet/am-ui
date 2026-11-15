@@ -1,0 +1,6 @@
+# build outputs of the lab probe and the Cavern copy
+probe/bin/
+probe/obj/
+cavern-src/**/bin/
+cavern-src/**/obj/
+__pycache__/

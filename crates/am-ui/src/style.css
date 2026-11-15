@@ -1,0 +1,181 @@
+/* am-ui: the Adwaita style reshaped toward Apple Music. Colours that differ between the light
+   and the dark appearance are in style-dark.css (loaded on top when the desktop is dark). */
+
+:root {
+  --accent-bg-color: #fa2d48;
+  --accent-fg-color: #ffffff;
+  --accent-color: #d91a35;
+}
+
+window.am-ui, window.am-ui popover, window.am-ui dialog {
+  font-family: "Adwaita Sans", "Inter", "SF Pro Text", sans-serif;
+}
+
+/* --- sidebar */
+.sidebar-search { margin: 4px 12px 8px 12px; }
+.sidebar-heading { font-size: 0.8em; font-weight: 700; opacity: 0.5; margin: 16px 20px 4px 20px; }
+.navigation-sidebar > row { min-height: 34px; margin: 0 8px; padding: 0 10px; border-radius: 8px; }
+.navigation-sidebar > row image { color: var(--accent-bg-color); }
+.navigation-sidebar > row label { font-size: 0.97em; }
+
+/* --- pages */
+headerbar { min-height: 46px; }
+gridview.cards { padding: 4px 20px 28px 20px; background: none; }
+gridview.cards > child { padding: 10px; margin: 0; border-radius: 12px; background: none; }
+gridview.cards > child:hover { background: none; }
+gridview.cards > child:focus-visible { outline-offset: -4px; }
+
+listview.tracks { padding: 0 12px 24px 12px; background: none; }
+listview.tracks > row { padding: 0; margin: 0; border-radius: 8px; }
+trackrow .row-title { font-weight: 500; }
+trackrow .row-artist, trackrow .row-album, trackrow .row-duration, trackrow .row-number { font-size: 0.92em; }
+/* the artist and the album of a song lead to their pages (widgets::make_link) */
+label.text-link:hover { text-decoration-line: underline; }
+/* "Go to Song": the song's row lights up, then the light fades (widgets/track_row.rs) */
+trackrow { border-radius: 8px; }
+trackrow.found { background-color: alpha(var(--accent-bg-color), 0.3); }
+trackrow.fading { transition: background-color 1s ease-in; }
+trackrow.playing .row-title { color: var(--accent-color); }
+trackrow.unavailable .row-title, trackrow.unavailable .row-artist { opacity: 0.4; }
+trackrow button { min-width: 30px; min-height: 30px; padding: 0; }
+trackrow .hover-only { opacity: 0; }
+trackrow:hover .hover-only { opacity: 1; }
+trackrow button.favorite { color: var(--accent-color); }
+/* lists of albums, artists and playlists (pages/view_options.rs, widgets/item_row.rs) */
+listview.items { padding: 4px 12px 24px 12px; background: none; }
+listview.items > row { padding: 0; margin: 0; border-radius: 8px; }
+itemrow .row-title { font-weight: 500; }
+itemrow .row-line, itemrow .row-year { font-size: 0.92em; }
+itemrow button { min-width: 30px; min-height: 30px; padding: 0; }
+itemrow .hover-only { opacity: 0; }
+itemrow:hover .hover-only, listview.items > row:focus-visible itemrow .hover-only { opacity: 1; }
+
+/* --- player bar */
+.player-bar { padding: 6px 14px; min-height: 60px; border-top: 1px solid alpha(currentColor, 0.1); }
+.player-bar .art-button { padding: 0; border-radius: 6px; }
+.player-bar .player-title { font-weight: 600; }
+.player-bar .player-subtitle { font-size: 0.9em; }
+.player-bar .player-time { font-size: 0.82em; }
+.player-bar .play-button image { -gtk-icon-size: 22px; }
+.player-bar button.circular { min-width: 34px; min-height: 34px; }
+.player-bar togglebutton:checked { color: var(--accent-color); background: none; }
+.player-bar button.favorite { color: var(--accent-color); }
+.player-bar scale { padding: 0 4px; }
+.format-badge { font-size: 0.72em; font-weight: 700; padding: 2px 7px; border-radius: 5px; border: 1px solid alpha(currentColor, 0.35); opacity: 0.8; }
+.format-badge.switching { opacity: 0.35; }
+.sound-menu { margin: 12px; }
+
+/* --- sign-in */
+.signin-code { font-size: 1.6em; font-weight: 600; letter-spacing: 0.3em; min-height: 46px; min-width: 210px; }
+
+/* --- search (pages/search.rs): headings and cards start 30px from the page's edge, like the
+   artwork of the library's grids */
+.search-results { padding: 2px 0 28px 0; }
+.search-heading { font-size: 1.25em; font-weight: 700; margin: 18px 30px 6px 30px; }
+.search-first { margin: 0 16px; }
+.search-songs > .search-heading { margin-left: 14px; margin-right: 14px; }
+.search-songs listview.tracks { padding: 0; }
+.search-top-column { margin: 0 14px; }
+.search-top-column > .search-heading { margin-left: 0; margin-right: 0; }
+button.search-top { padding: 18px; border-radius: 14px; background: alpha(currentColor, 0.06); }
+button.search-top:hover { background: alpha(currentColor, 0.1); }
+button.search-top:active { background: alpha(currentColor, 0.16); }
+button.search-top label { font-weight: normal; }
+button.search-top .search-top-name { font-size: 1.35em; font-weight: 700; }
+statuspage.search-prompt .icon { -gtk-icon-size: 56px; color: alpha(currentColor, 0.3); margin-bottom: 16px; }
+statuspage.search-prompt .description { color: alpha(currentColor, 0.55); }
+flowbox.search-cards { margin: 0 20px; }
+flowbox.search-cards > flowboxchild { padding: 10px; border-radius: 12px; background: none; }
+flowbox.search-cards > flowboxchild:focus-visible { outline-offset: -4px; }
+/* the library's part of Apple Music's results: a panel of its own above them, its rows' artwork
+   in line with the rest of the page */
+.search-library { margin: 14px 16px 4px 16px; padding-bottom: 8px; border-radius: 14px; background: alpha(currentColor, 0.045); }
+.search-library-top > .search-heading { margin: 14px 14px 6px 14px; }
+.search-library-top > button { margin: 8px 8px 0 0; }
+.search-library listview.tracks { padding: 0; background: none; }
+flowbox.search-items { margin: 0; }
+flowbox.search-items > flowboxchild { padding: 0; border-radius: 8px; background: none; }
+flowbox.search-items > flowboxchild:hover { background: alpha(currentColor, 0.06); }
+flowbox.search-items > flowboxchild:focus-visible { outline-offset: -2px; }
+
+/* --- shelves: Home, New and Radio (pages/shelves.rs, widgets/shelf.rs, widgets/song_cell.rs);
+   sizes in em grow with the desktop's text size (2.25em: 30px at 10 points) */
+.shelves-title { font-size: 2.25em; font-weight: 800; letter-spacing: -0.01em; }
+.shelf-title { font-size: 1.5em; font-weight: 700; }
+.shelf-note { font-size: 0.94em; font-weight: 500; }
+.shelf-arrow { min-width: 34px; min-height: 34px; padding: 0; opacity: 0; transition: opacity 150ms ease-out; color: var(--popover-fg-color); background-color: var(--popover-bg-color); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28), 0 0 0 1px alpha(currentColor, 0.1); }
+.shelf-arrow.shown { opacity: 1; }
+.shelf-arrow:hover { background-image: image(alpha(currentColor, 0.08)); }
+.shelf-arrow:active { background-image: image(alpha(currentColor, 0.16)); }
+shelf card:focus-visible { outline: 2px solid alpha(var(--accent-color), 0.7); outline-offset: 3px; border-radius: 10px; }
+songcell { border-radius: 8px; }
+songcell:hover { background-color: alpha(currentColor, 0.07); }
+songcell:focus-visible { outline: 2px solid alpha(var(--accent-color), 0.7); outline-offset: -2px; }
+songcell .song-title { font-weight: 500; }
+songcell .song-artist { font-size: 0.94em; }
+songcell .song-explicit { -gtk-icon-size: 0.9em; }
+songcell.playing .song-title { color: var(--accent-color); }
+songcell.unavailable .song-title, songcell.unavailable .song-artist { opacity: 0.4; }
+songcell button { min-width: 30px; min-height: 30px; padding: 0; }
+songcell .hover-only { opacity: 0; }
+songcell:hover .hover-only { opacity: 1; }
+.shelf-shape { background-color: alpha(currentColor, 0.07); border-radius: 5px; }
+.shelf-shape.art { border-radius: 9px; }
+
+/* --- the pages of an album, a playlist and an artist (pages/collection.rs, pages/artist.rs) */
+hero .hero-title { font-size: 1.9em; font-weight: 800; letter-spacing: -0.01em; }
+hero .hero-name { font-size: 2.5em; font-weight: 800; letter-spacing: -0.015em; }
+hero .hero-byline, hero button.hero-link > label { font-size: 1.45em; font-weight: 400; color: var(--accent-color); }
+hero button.hero-link { padding: 0 8px; margin: 0 -8px; min-height: 0; border-radius: 7px; }
+hero .hero-meta { margin-top: 8px; }
+hero .hero-meta > label:not(.format-badge), hero label.hero-meta { font-size: 0.8em; font-weight: 700; opacity: 0.6; }
+hero .hero-description { margin-top: 10px; }
+excerpt > label { opacity: 0.78; }
+excerpt > button.excerpt-more { padding: 0 6px; margin-left: -6px; min-height: 22px; font-size: 0.86em; font-weight: 700; }
+hero .hero-actions { margin-top: 16px; }
+hero .hero-actions button.pill { padding: 6px 22px; min-height: 22px; }
+hero .hero-actions button.pill image { -gtk-icon-size: 14px; }
+hero .hero-actions button.circular { min-width: 34px; min-height: 34px; }
+hero .hero-mark { min-width: 34px; min-height: 34px; border-radius: 9999px; background-color: alpha(currentColor, 0.1); -gtk-icon-size: 16px; }
+listview.tracks.embedded { padding-bottom: 0; }
+listview.tracks > header { padding: 0; margin: 0; background: none; }
+.disc-heading { font-weight: 700; margin: 18px 14px 6px 14px; }
+.page-footer { font-size: 0.92em; opacity: 0.55; margin: 14px 26px 30px 26px; }
+.page-note { opacity: 0.55; margin: 6px 26px 12px 26px; }
+.section-title { font-size: 1.35em; font-weight: 800; margin: 16px 26px 6px 26px; }
+columns.top-songs { margin: 0 12px 8px 12px; }
+columns.top-songs > trackrow { border-radius: 8px; }
+columns.top-songs > trackrow:hover { background-color: alpha(currentColor, 0.06); }
+columns.top-songs > trackrow:focus-visible { outline: 2px solid alpha(var(--accent-color), 0.6); outline-offset: -2px; }
+gridview.cards.embedded { padding-top: 0; padding-bottom: 6px; }
+trackrow .row-explicit { opacity: 0.5; -gtk-icon-size: 0.9em; }
+
+/* --- Now Playing, lyrics and the queue */
+/* Now Playing lies on a dark glow in both appearances: everything on it is white */
+nowplaying { color: white; }
+nowplaying headerbar { background: none; box-shadow: none; border: none; color: white; }
+nowplaying .np-title { font-size: 1.65em; font-weight: 700; }
+nowplaying .np-artist { font-size: 1.2em; opacity: 0.72; }
+nowplaying .np-note { font-size: 0.975em; opacity: 0.55; }
+/* a toggle of the player bar that is on (a toggle button is a "button" with the class "toggle") */
+.player-bar button.toggle:checked { color: var(--accent-color); background: none; }
+
+.queue-heading { font-weight: 700; font-size: 1.1em; margin-left: 8px; }
+queuerow .queue-section { font-weight: 700; font-size: 0.95em; opacity: 0.6; }
+.autoplay-toggle:checked { color: var(--accent-color); background: none; }
+listview.queue { padding: 0 8px 12px 8px; background: none; }
+listview.queue > row { padding: 0; margin: 0; border-radius: 8px; }
+queuerow .row-title { font-weight: 500; }
+queuerow .row-artist, queuerow .row-duration { font-size: 0.92em; }
+queuerow button { min-width: 30px; min-height: 30px; padding: 0; }
+/* the button that removes a song takes the place of its duration under the pointer */
+queuerow .hover-only { opacity: 0; }
+queuerow:hover .hover-only, listview.queue > row:focus-visible queuerow .hover-only { opacity: 1; }
+queuerow:hover .row-duration, listview.queue > row:focus-visible queuerow .row-duration { opacity: 0; }
+/* a row that is being dragged, and the line of the gap it would land in */
+queuerow.dragged { opacity: 0.35; }
+queuerow.drop-above { box-shadow: inset 0 2px var(--accent-bg-color); }
+queuerow.drop-below { box-shadow: inset 0 -2px var(--accent-bg-color); }
+
+/* --- equalizer (widgets/equalizer.rs): the active preset's name in the accent colour */
+.eq-presets row.eq-active label.title { color: var(--accent-color); }

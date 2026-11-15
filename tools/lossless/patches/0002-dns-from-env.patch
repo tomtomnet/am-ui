@@ -1,0 +1,36 @@
+am-ui lossless route: resolve DNS through the host resolvers handed over by the launcher
+(LITE_DNS_SERVERS) instead of upstream wrapper-lite's hard-coded AliDNS 223.5.5.5/223.6.6.6.
+Applies on top of 0001 (WorldObservationLog/wrapper lite 386ec82 + the 2026-11-05 TLS repair).
+Behaviour is unchanged when the variable is absent.
+
+--- a/lite/bridge.cpp
++++ b/lite/bridge.cpp
+@@ -62,8 +62,26 @@
+     setenv("ANDROID_DNS_MODE", "local", 1);
+     setenv("ANDROID_DATA", "/data", 1);
+     setenv("ANDROID_ROOT", "/system", 1);
+-    static const char* resolvers[2] = {"223.5.5.5", "223.6.6.6"};
+-    _resolv_set_nameservers_for_net(0, resolvers, 2, ".");
++    /* am-ui: the host launcher passes its own resolvers in LITE_DNS_SERVERS
++       (comma or space separated, at most four addresses). Only when it is
++       absent do upstream's hard-coded public resolvers remain in use. */
++    static const char* resolvers[4] = {"223.5.5.5", "223.6.6.6", nullptr, nullptr};
++    static char dns_env_copy[256];
++    int resolver_count = 2;
++    const char* dns_env = getenv("LITE_DNS_SERVERS");
++    if (dns_env && *dns_env) {
++        snprintf(dns_env_copy, sizeof(dns_env_copy), "%s", dns_env);
++        int n = 0;
++        char* dns_save = nullptr;
++        for (char* tok = strtok_r(dns_env_copy, ", ", &dns_save); tok && n < 4;
++             tok = strtok_r(nullptr, ", ", &dns_save)) {
++            resolvers[n++] = tok;
++        }
++        if (n > 0) resolver_count = n;
++    }
++    LOG_INFO("dns: %d resolver(s) %s", resolver_count,
++             (dns_env && *dns_env) ? "from LITE_DNS_SERVERS" : "(upstream defaults)");
++    _resolv_set_nameservers_for_net(0, resolvers, resolver_count, ".");
+ 
+     union std_string conf1 = new_std_string(device_infos[8] ? device_infos[8] : "");
+     union std_string conf2 = new_std_string("");

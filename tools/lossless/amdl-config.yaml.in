@@ -1,0 +1,69 @@
+# apple-music-downloader 0.1.4 configuration for the am-ui lossless route.
+# build.sh renders this into var/wrapper/amdl/config.yaml (the file is kept if it already exists).
+# Only the keys that differ from upstream's config.yaml.example are commented here.
+general:
+  lite-server: "http://127.0.0.1:__PORT__"   # am-ui's wrapper (tools/lossless/start.sh)
+  media-user-token: ""
+  language: ""
+  max-memory-limit: 256
+  proxy: ""
+  storefront: "us"
+  authorization-token: ""
+  exit-on-error: true                       # scripts, not an interactive session
+
+media:
+  get-m3u8-mode: "all"                      # always ask the wrapper for the account's device playlist
+  alac-max: 192000                          # take the best ALAC rendition Apple offers (24-bit/192 kHz max)
+  atmos-max: 2768
+  aac-type: "aac-lc"
+  alac-fix: true                            # patch ALAC packets missing their end marker (upstream default)
+  mv:
+    audio-type: "atmos"
+    max: 2160
+
+paths:
+  alac: "__OUT__/alac"                      # private, under var/wrapper (0700)
+  atmos: "__OUT__/atmos"
+  aac: "__OUT__/aac"
+  mv: "__OUT__/mv"
+  album-folder: "{AlbumId}"                 # ids, not names: stable paths for amui.acquire
+  playlist-folder: "{PlaylistId}"
+  artist-folder: ""
+  song-file: "{SongId}"
+  limit-max: 200
+  explicit: ""
+  clean: ""
+  apple-master: ""
+
+metadata:
+  lyrics:
+    save-file: false
+    embed: false                            # amui has its own lyrics path; fewer account requests per song
+    type: "lyrics"
+    format: "lrc"
+    extra: ""
+  artwork:
+    embed: false                            # artwork comes from amui's cache
+    size: "5000x5000"
+    format: "jpg"
+    save-artist: false
+    save-animated: false
+    emby-animated: false
+    dl-for-playlist: false
+  tags:
+    sort-order: true
+    itunes-id: true
+    use-songinfo-for-playlist: false
+
+convert:
+  after-download: false                     # keep the ALAC .m4a exactly as decrypted
+  format: "flac"
+  keep-original: true
+  skip-if-source-matches: true
+  ffmpeg-path: "ffmpeg"
+  extra-args: ""
+  with-metadata: true
+  warn-lossy-to-lossless: true
+  skip-lossy-to-lossless: true
+  check-bad-alac: false
+  delete-bad-alac: false

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/dev/amui/Music">
+    <file preprocess="xml-stripblanks">icons/scalable/actions/am-album-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/scalable/actions/am-autoplay-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/scalable/actions/am-explicit-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/scalable/actions/am-lyrics-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/scalable/actions/am-queue-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/scalable/actions/am-radio-symbolic.svg</file>
+    <file preprocess="xml-stripblanks">icons/scalable/actions/am-sound-symbolic.svg</file>
+  </gresource>
+</gresources>

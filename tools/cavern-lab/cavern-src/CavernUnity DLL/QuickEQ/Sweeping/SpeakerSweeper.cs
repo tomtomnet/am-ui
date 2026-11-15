@@ -1,0 +1,418 @@
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
+using System.Threading.Tasks;
+using UnityEngine;
+
+using Cavern.QuickEQ.Equalization;
+using Cavern.QuickEQ.SignalGeneration;
+using Cavern.Utilities;
+using Cavern.Utilities.Threading;
+using Cavern.Waveforms;
+
+namespace Cavern.QuickEQ.Sweeping {
+    /// <summary>
+    /// Measures the frequency response of all output channels.
+    /// </summary>
+    [AddComponentMenu("Audio/QuickEQ/Speaker Sweeper")]
+    public class SpeakerSweeper : MonoBehaviour, IDisposable {
+        /// <summary>
+        /// Frequency at the beginning of the sweep.
+        /// </summary>
+        [Tooltip("Frequency at the beginning of the sweep.")]
+        [Range(1, 24000)] public float StartFreq = 20;
+
+        /// <summary>
+        /// Frequency at the end of the sweep.
+        /// </summary>
+        [Tooltip("Frequency at the end of the sweep.")]
+        [Range(1, 24000)] public float EndFreq = 20000;
+
+        /// <summary>
+        /// Maximum checked frequency for LFE channels. Other frequencites will be suppressed.
+        /// </summary>
+        [Tooltip("Maximum checked frequency for LFE channels. Other frequencites will be suppressed.")]
+        [Range(1, 24000)] public float EndFreqLFE = 200;
+
+        /// <summary>
+        /// Measurement signal gain in decibels relative to full scale.
+        /// </summary>
+        [Tooltip("Measurement signal gain in decibels relative to full scale.")]
+        [Range(-50, 0)] public float SweepGain = -20;
+
+        /// <summary>
+        /// Length of the measurement signal. Must be a power of 2.
+        /// </summary>
+        [Tooltip("Length of the measurement signal. Must be a power of 2.")]
+        public int SweepLength = 32768;
+
+        /// <summary>
+        /// Waits a sweep's time before the actual measurement.
+        /// This helps for measuring with microphones that click when the system turns them on.
+        /// </summary>
+        [Tooltip("Waits a sweep's time before the actual measurement. " +
+            "This helps for measurement with microphones that click when the system turns them on.")]
+        public bool WarmUpMode;
+
+        /// <summary>
+        /// Measure all channels together. In this case, there will only be a single result.
+        /// </summary>
+        [Tooltip("Measure all channels together. In this case, there will only be a single result.")]
+        public bool Instant;
+
+        /// <summary>
+        /// Remove this frequency and upper harmonics from the measurements in case of excessive mains hum or a damaged UMIK-1.
+        /// </summary>
+        [Tooltip("Remove this frequency and upper harmonics from the measurements in case of excessive mains hum or a damaged UMIK-1.")]
+        public double FilterMains;
+
+        /// <summary>
+        /// Create noise-free impulse responses by removing noise outside the sweep frequency range. Can break some corrections.
+        /// </summary>
+        [Tooltip("Create noise-free impulse responses by removing noise outside the sweep frequency range. Can break some corrections.")]
+        public bool DenoiseIRs;
+
+        /// <summary>The measurement is done and responses are available.</summary>
+        [NonSerialized] public bool ResultAvailable;
+
+        /// <summary>
+        /// Raw recorded signals of output channels.
+        /// </summary>
+        [Linked(nameof(FreqResponses))]
+        [NonSerialized] public float[][] ExcitementResponses;
+
+        /// <summary>
+        /// Frequency responses of output channels.
+        /// </summary>
+        [Linked(nameof(ImpResponses))]
+        [NonSerialized] public Equalizer[] FreqResponses;
+
+        /// <summary>
+        /// Impulse responses of output channels.
+        /// </summary>
+        [Linked(nameof(FreqResponses))]
+        [NonSerialized] public VerboseImpulseResponse[] ImpResponses;
+
+        /// <summary>
+        /// Change the measurement signal to this tone.
+        /// </summary>
+        public float[] Bypass {
+            get => bypass;
+            set {
+                bypass = value;
+                RegenerateSweep();
+            }
+        }
+        float[] bypass;
+
+        /// <summary>
+        /// Measurement signal samples.
+        /// </summary>
+        public float[] SweepReference { get; protected set; }
+
+        /// <summary>
+        /// Channel under measurement. If <see cref="ResultAvailable"/> is false, but this equals the channel count,
+        /// <see cref="FreqResponses"/> are still being processed.
+        /// </summary>
+        public int Channel { get; private set; }
+
+        /// <summary
+        /// >Measurement sample rate. Set after an <see cref="InputDevice"/> was selected.
+        /// </summary>
+        public int SampleRate {
+            get {
+                if (sampleRate != 0) {
+                    return sampleRate;
+                }
+                return sampleRate = AudioListener3D.Current.SampleRate;
+            }
+            internal set => sampleRate = value;
+        }
+        int sampleRate;
+
+        /// <summary>
+        /// Progress of the measurement process from 0 to 1.
+        /// </summary>
+        public float Progress {
+            get {
+                if (ResultAvailable) {
+                    return 1;
+                } else if (!enabled || sweepers == null) {
+                    return 0;
+                }
+                int runs = SweepRuns;
+                int divisor = WarmUpMode ? runs + 1 : runs;
+                return (float)sweepers[runs - 1].timeSamples / SweepReference.Length / divisor;
+            }
+        }
+
+        /// <summary>
+        /// Name of the recording device. If empty, the system default will be used.
+        /// </summary>
+        public string InputDevice {
+            get {
+                if (inputDevice != null) {
+                    return inputDevice;
+                }
+                return InputDevice = string.Empty;
+            }
+            set {
+                int oldSampleRate = SampleRate;
+                sweepResponse = Microphone.Start(value, false, 1, AudioListener3D.Current.SampleRate);
+                if (sweepResponse != null) {
+                    Microphone.End(value);
+                    Destroy(sweepResponse);
+                    SampleRate = AudioListener3D.Current.SampleRate;
+                } else {
+                    Microphone.GetDeviceCaps(value, out int min, out _);
+                    if (min == 0) {
+                        SampleRate = 48000;
+                    } else {
+                        SampleRate = min;
+                    }
+                }
+                if (SampleRate != oldSampleRate) {
+                    RegenerateSweep();
+                }
+                inputDevice = value;
+            }
+        }
+        string inputDevice;
+
+        /// <summary>
+        /// Number of sweeps performed.
+        /// </summary>
+        int SweepRuns => Instant ? 1 : Listener.Channels.Length;
+
+        /// <summary>
+        /// Microphone input.
+        /// </summary>
+        AudioClip sweepResponse;
+
+        /// <summary>
+        /// A hack to fix lost playback from the initial hanging caused by sweep generation in <see cref="OnEnable"/>.
+        /// </summary>
+        bool measurementStarted;
+
+        /// <summary>
+        /// LFE pass-through before the measurement. LFE pass-through is on while measuring.
+        /// </summary>
+        bool oldDirectLFE;
+
+        /// <summary>
+        /// Virtualizer before the measurement. Virtualizer is off while measuring.
+        /// </summary>
+        bool oldVirtualizer;
+
+        /// <summary>
+        /// Measurement signal's Fourier transform for response calculation optimizations.
+        /// </summary>
+        Complex[] sweepFFT;
+
+        /// <summary>
+        /// Measurement signal's Fourier transform for response calculation optimizations
+        /// and removed high frequencies for LFE noise suppression.
+        /// </summary>
+        Complex[] sweepFFTlow;
+
+        /// <summary>
+        /// FFT constant cache for the sweep FFT size.
+        /// </summary>
+        FFTCache sweepFFTCache;
+
+        /// <summary>
+        /// Sweep playback objects. One is created for each channel, and depending on <see cref="Instant"/>, they are either played one by one or all at once.
+        /// </summary>
+        SweepChannel[] sweepers;
+
+        /// <summary>
+        /// Response evaluator tasks.
+        /// </summary>
+        Task<SweeperBackgroundCalculator>[] workers;
+
+        /// <summary>
+        /// Generate <see cref="SweepReference"/> and the related optimization values.
+        /// </summary>
+        /// <remarks>To create the raw <see cref="SweepReference"/>, call the base function.</remarks>
+        public virtual void RegenerateSweep() {
+            if (bypass == null) {
+                SweepReference = SweepGenerator.Frame(SweepGenerator.Exponential(StartFreq, EndFreq, SweepLength, SampleRate));
+            } else {
+                SweepReference = bypass.FastClone();
+            }
+            float gainMult = Mathf.Pow(10, SweepGain / 20);
+            WaveformUtils.Gain(SweepReference, gainMult);
+            sweepFFTCache?.Dispose();
+            sweepFFT = SweepReference.FFT(sweepFFTCache = new FFTCache(SweepReference.Length));
+            sweepFFTlow = sweepFFT.FastClone();
+            if (DenoiseIRs) {
+                Measurements.OffbandGain(sweepFFT, StartFreq, EndFreq, SampleRate, 100);
+                Measurements.OffbandGain(sweepFFTlow, StartFreq, EndFreqLFE, sampleRate, 100);
+            }
+        }
+
+        /// <summary>
+        /// Get the measurement signal for a specific channel. Override to calibrate (like delay) per channel.
+        /// </summary>
+        public virtual float[] GetSweepForChannel(int channel) => SweepReference;
+
+        /// <summary>
+        /// Get if any channel was clipping while measuring.
+        /// </summary>
+        /// <remarks>This function is using <see cref="Parallelizer.ForUnchecked(int, int, Action{int})"/> and might overload the
+        /// thread pool. Use <see cref="GetClippingChannels(bool)"/> with its parameter set to false to perform the operation
+        /// on a single thread.</remarks>
+        public bool[] GetClippingChannels() => GetClippingChannels(true);
+
+        /// <summary>
+        /// Get if any channel was clipping while measuring.
+        /// </summary>
+        /// <returns>For each channel if it was clipping.</returns>
+        public bool[] GetClippingChannels(bool parallel) {
+            bool[] result = new bool[ExcitementResponses.Length];
+            if (parallel) {
+                Parallelizer.ForUnchecked(0, result.Length, i => result[i] = WaveformUtils.GetPeakSigned(ExcitementResponses[i]) >= 1);
+            } else {
+                for (int i = 0; i < result.Length; i++) {
+                    result[i] = WaveformUtils.GetPeakSigned(ExcitementResponses[i]) >= 1;
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Prepare this sweeper for importing measurement data channel by channel with <see cref="OverwriteChannel(int, float[])"/>.
+        /// </summary>
+        public void OverwriteSweeper(int channels, int fftSize) {
+            ResultAvailable = false;
+            SweepLength = fftSize;
+            RegenerateSweep();
+            ExcitementResponses = new float[channels][];
+            FreqResponses = new Equalizer[channels];
+            ImpResponses = new VerboseImpulseResponse[channels];
+        }
+
+        /// <summary>
+        /// Import measurement data to a given channel.
+        /// </summary>
+        public void OverwriteChannel(int channel, float[] response) {
+            ExcitementResponses[channel] = response;
+            int lfeGetterChannels = ExcitementResponses.Length == SweepRuns ? -1 : ExcitementResponses.Length;
+            Complex[] fft = Cavern.Channel.IsLFE(channel, lfeGetterChannels) ? sweepFFTlow : sweepFFT;
+            SweeperBackgroundCalculator calculator = new SweeperBackgroundCalculator(fft, sweepFFTCache, response, sampleRate, FilterMains);
+            FreqResponses[channel] = calculator.FrequencyResponse;
+            ImpResponses[channel] = calculator.ImpulseResponse;
+        }
+
+        /// <summary>
+        /// Import a full external measurement.
+        /// </summary>
+        public void Overwrite(MultichannelWaveform responses) {
+            OverwriteSweeper(responses.Channels, responses[0].Length >> 1);
+            for (int channel = 0; channel < responses.Channels; channel++) {
+                OverwriteChannel(channel, responses[channel]);
+            }
+        }
+
+        /// <summary>
+        /// Free the resources used by this object.
+        /// </summary>
+        public void Dispose() => sweepFFTCache?.Dispose();
+
+        [SuppressMessage("CodeQuality", "IDE0052:Remove unread private members", Justification = "Used by Unity lifecycle")]
+        void OnEnable() {
+            measurementStarted = false;
+            ResultAvailable = false;
+
+            RegenerateSweep();
+            Channel = 0;
+            int channels = SweepRuns;
+            FreqResponses = new Equalizer[channels];
+            ImpResponses = new VerboseImpulseResponse[channels];
+            ExcitementResponses = new float[channels][];
+            workers = new Task<SweeperBackgroundCalculator>[channels];
+            oldDirectLFE = AudioListener3D.Current.DirectLFE;
+            oldVirtualizer = Listener.HeadphoneVirtualizer;
+            AudioListener3D.Current.DirectLFE = true;
+            Listener.HeadphoneVirtualizer = false;
+        }
+
+        [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Used by Unity lifecycle")]
+        void Update() {
+            if (!measurementStarted) {
+                measurementStarted = true;
+                sweepers = new SweepChannel[Listener.Channels.Length];
+                for (int i = 0; i < sweepers.Length; i++) {
+                    sweepers[i] = gameObject.AddComponent<SweepChannel>();
+                    sweepers[i].Channel = i;
+                    sweepers[i].Instant = Instant;
+                    sweepers[i].Sweeper = this;
+                    sweepers[i].WarmUpMode = WarmUpMode;
+                }
+                if (Microphone.devices.Length != 0) {
+                    int channels = WarmUpMode ? SweepRuns + 1 : SweepRuns;
+                    sweepResponse = Microphone.Start(InputDevice, false, SweepReference.Length * channels / SampleRate + 1, SampleRate);
+                }
+            }
+
+            if (ResultAvailable) {
+                return;
+            }
+
+            if (!sweepers[Channel].IsPlaying) {
+                float[] result = new float[SweepReference.Length];
+                if (sweepResponse) {
+                    int offset = WarmUpMode ? Channel + 1 : Channel;
+                    sweepResponse.GetData(result, offset * SweepReference.Length);
+                }
+                ExcitementResponses[Channel] = result;
+                Complex[] fft = Cavern.Channel.IsLFE(Channel) ? sweepFFTlow : sweepFFT;
+                workers[Channel] = new Task<SweeperBackgroundCalculator>(() => new SweeperBackgroundCalculator(fft, sweepFFTCache, result, sampleRate, FilterMains));
+                workers[Channel].Start();
+                if (++Channel == SweepRuns) {
+                    for (int channel = 0; channel < SweepRuns; channel++) {
+                        workers[channel].Wait();
+                    }
+
+                    for (int channel = 0; channel < SweepRuns; channel++) {
+                        FreqResponses[channel] = workers[channel].Result.FrequencyResponse;
+                        ImpResponses[channel] = workers[channel].Result.ImpulseResponse;
+                        Destroy(sweepers[channel]);
+                    }
+                    for (int channel = SweepRuns; channel < sweepers.Length; channel++) {
+                        Destroy(sweepers[channel]);
+                    }
+
+                    for (int channel = 0; channel < SweepRuns; channel++) {
+                        workers[channel].Dispose();
+                    }
+                    sweepers = null;
+                    if (Microphone.IsRecording(InputDevice)) {
+                        Microphone.End(InputDevice);
+                    }
+                    if (sweepResponse) {
+                        Destroy(sweepResponse);
+                    }
+                    ResultAvailable = true;
+                }
+            }
+        }
+
+        [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Used by Unity lifecycle")]
+        void OnDisable() {
+            if (sweepers != null && sweepers[0]) {
+                for (int channel = 0; channel < sweepers.Length; channel++) {
+                    Destroy(sweepers[channel]);
+                }
+            }
+            sweepers = null;
+            if (sweepResponse) {
+                Destroy(sweepResponse);
+            }
+            AudioListener3D.Current.DirectLFE = oldDirectLFE;
+            Listener.HeadphoneVirtualizer = oldVirtualizer;
+        }
+
+        [SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Used by Unity lifecycle")]
+        void OnDestroy() => Dispose();
+    }
+}

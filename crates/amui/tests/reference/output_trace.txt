@@ -1,0 +1,122 @@
+000 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=0 buf=0 under=0 hand=0 seg=1:0,0,0,0
+001 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=0 buf=0 under=0 hand=0 seg=1:0,0,0,0
+002 c26c6c08dc59 gain=3fee217f9561bbe8 trim=3fee217f9561bbe8 cur=720 pos=240 cf=720 bf=8280 buf=0 under=0 hand=0 seg=2:960,240,1,2
+003 dd464fb1bf11 gain=3fec42ff2ac377d0 trim=3fec42ff2ac377d0 cur=1200 pos=240 cf=1200 bf=7800 buf=0 under=0 hand=0 seg=2:960,240,1,2
+004 5e389801d3d4 gain=3fea647ec02533b8 trim=3fea647ec02533b8 cur=1680 pos=240 cf=1680 bf=7320 buf=0 under=0 hand=0 seg=2:960,240,1,2
+005 e3b3a405acb3 gain=3fe12a986f11a7bc trim=3fe885fe5586efa0 cur=2160 pos=240 cf=2160 bf=6840 buf=0 under=0 hand=0 seg=2:960,240,1,2
+006 612df90c9815 gain=3fdfb749e278f027 trim=3fe6a77deae8ab8a cur=2640 pos=240 cf=2640 bf=6360 buf=0 under=0 hand=0 seg=2:960,240,1,2 ev=started:1000000001.atmos@960
+007 4ba880472132 gain=0000000000000000 trim=3fe6a77deae8ab8a cur=3120 pos=720 cf=3120 bf=5880 buf=0 under=0 hand=0 seg=2:960,240,1,2
+008 4c7eea521d22 gain=0000000000000000 trim=3fe6a77deae8ab8a cur=3120 pos=1200 cf=3120 bf=5880 buf=0 under=0 hand=0 seg=3:3840,3120,0,2
+009 4c7eea521d22 gain=0000000000000000 trim=3fe6a77deae8ab8a cur=3120 pos=1680 cf=3120 bf=5880 buf=0 under=0 hand=0 seg=3:3840,3120,0,2
+010 6fed3fadb7ad gain=3fdfb749e278f027 trim=3fe6a77deae8ab8a cur=3600 pos=2160 cf=3600 bf=5400 buf=0 under=0 hand=0 seg=4:4800,3120,1,2
+011 9d8e997fe826 gain=3fdfb749e278f027 trim=3fe6a77deae8ab8a cur=4080 pos=2640 cf=4080 bf=4920 buf=0 under=0 hand=0 seg=4:4800,3120,1,2
+012 0e5bc7a1c9dc gain=0000000000000000 trim=3fe6a77deae8ab8a cur=4560 pos=6000 cf=6000 bf=4440 buf=0 under=0 hand=0 seg=4:4800,3120,1,2
+013 5c193d990632 gain=3fdfb749e278f027 trim=3fe6a77deae8ab8a cur=6480 pos=6000 cf=6480 bf=2520 buf=0 under=0 hand=0 seg=5:6240,6000,1,3
+014 f393a3295808 gain=3fdfb749e278f027 trim=3fe6a77deae8ab8a cur=6960 pos=6000 cf=6960 bf=2040 buf=0 under=0 hand=0 seg=5:6240,6000,1,3
+015 1801befa6f47 gain=3fc6a77deae8ab8a trim=3fe6a77deae8ab8a cur=7440 pos=6000 cf=7440 bf=1560 buf=0 under=0 hand=0 seg=5:6240,6000,1,3
+016 cbd68a050d6a gain=3fc6a77deae8ab8a trim=3fe6a77deae8ab8a cur=7920 pos=6000 cf=7920 bf=1080 buf=0 under=0 hand=0 seg=5:6240,6000,1,3
+017 8efdc5b36782 gain=3fc6a77deae8ab8a trim=3fe6a77deae8ab8a cur=8400 pos=6000 cf=8400 bf=600 buf=0 under=0 hand=0 seg=5:6240,6000,1,3
+018 e6ea3c33079e gain=3fe6a77deae8ab8a trim=3fe6a77deae8ab8a cur=8880 pos=6480 cf=8880 bf=120 buf=0 under=0 hand=0 seg=5:6240,6000,1,3
+019 b010cf1b360a gain=3fe554bd18913018 trim=3fe554bd18913018 cur=360 pos=0 cf=360 bf=3740 buf=0 under=0 hand=1 seg=6:9240,0,1,4 log=handoff 1000000001.atmos -> 1000000002.stereo at stream frame 9240 (cursor 9000)
+020 85bd30e66184 gain=3fe401fc4639b4a6 trim=3fe401fc4639b4a6 cur=840 pos=0 cf=840 bf=3260 buf=0 under=0 hand=1 seg=6:9240,0,1,4
+021 b2095c085b52 gain=3fe2af3b73e23934 trim=3fe2af3b73e23934 cur=1320 pos=0 cf=1320 bf=2780 buf=0 under=0 hand=1 seg=6:9240,0,1,4
+022 64bdb5d80a86 gain=3fe558fc5cb4fa90 trim=3fe558fc5cb4fa90 cur=1800 pos=0 cf=1800 bf=2300 buf=0 under=0 hand=1 seg=6:9240,0,1,4
+023 77ab48cced3c gain=3fe802bd4587bbec trim=3fe802bd4587bbec cur=2280 pos=0 cf=2280 bf=1820 buf=0 under=0 hand=1 seg=6:9240,0,1,4
+024 5ec575b97efa gain=3feaac7e2e5a7d48 trim=3feaac7e2e5a7d48 cur=2760 pos=360 cf=2760 bf=1340 buf=0 under=0 hand=1 seg=6:9240,0,1,4 ev=ended:1000000001.atmos@9240,started:1000000002.stereo@9240
+025 5fc738870d03 gain=3fe88bf081b90b17 trim=3fe88bf081b90b17 cur=3240 pos=840 cf=3240 bf=860 buf=0 under=0 hand=1 seg=6:9240,0,1,4
+026 acd96da6d226 gain=3fe66b62d51798e6 trim=3fe66b62d51798e6 cur=3720 pos=1320 cf=3720 bf=380 buf=0 under=0 hand=1 seg=6:9240,0,1,4
+027 b9d0a58e2ebe gain=3fe855e8aa79471e trim=3fe855e8aa79471e cur=100 pos=0 cf=100 bf=1200 buf=0 under=0 hand=2 seg=7:13340,0,1,5 log=handoff 1000000002.stereo -> 1000000003.atmos at stream frame 13340 (cursor 4100)
+028 aee2bfc459f6 gain=3fea406e7fdaf556 trim=3fea406e7fdaf556 cur=580 pos=0 cf=580 bf=720 buf=0 under=0 hand=2 seg=7:13340,0,1,5
+029 15b958003edc gain=0000000000000000 trim=3fec2af4553ca38e cur=1060 pos=0 cf=1060 bf=240 buf=1 under=1 hand=2 seg=7:13340,0,1,5 log=starvation start: 1000000003.atmos cursor 580 available 1300 (lead 15 ms), episode 1
+030 4c7eea521d22 gain=0000000000000000 trim=3fee157a2a9e51c6 cur=1060 pos=0 cf=1060 bf=240 buf=1 under=1 hand=2 seg=8:14400,1060,0,5
+031 4c7eea521d22 gain=0000000000000000 trim=3feffffffffffffe cur=1060 pos=0 cf=1060 bf=240 buf=1 under=1 hand=2 seg=8:14400,1060,0,5
+032 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=1060 pos=100 cf=1060 bf=240 buf=1 under=1 hand=2 seg=8:14400,1060,0,5 ev=ended:1000000002.stereo@13340,started:1000000003.atmos@13340
+033 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=1060 pos=580 cf=1060 bf=5240 buf=1 under=1 hand=2 seg=8:14400,1060,0,5
+034 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=1060 pos=1060 cf=1060 bf=5240 buf=1 under=1 hand=2 seg=8:14400,1060,0,5
+035 1277eafdf064 gain=3ff0000000000000 trim=3ff0000000000000 cur=1540 pos=1060 cf=1540 bf=25460 buf=0 under=1 hand=2 seg=9:16800,1060,1,5 log=starvation end: 1000000003.atmos cursor 1060 available 27000 (lead 540 ms)
+036 294eeb210ea5 gain=3ff0000000000000 trim=3ff0000000000000 cur=2020 pos=1060 cf=2020 bf=24980 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+037 f44a0299dd05 gain=3ff0000000000000 trim=3ff0000000000000 cur=2500 pos=1060 cf=2500 bf=24500 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+038 f0c836c0b34d gain=3ff0000000000000 trim=3ff0000000000000 cur=2980 pos=1060 cf=2980 bf=24020 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+039 8673c0d4f39f gain=3fef4cbc2967cf9b trim=3fef4cbc2967cf9b cur=3460 pos=1060 cf=3460 bf=23540 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+040 0afbdc1e06f1 gain=3fee997852cf9f36 trim=3fee997852cf9f36 cur=3940 pos=1540 cf=3940 bf=23060 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+041 953c37de9397 gain=3fede6347c376ed1 trim=3fede6347c376ed1 cur=4420 pos=2020 cf=4420 bf=22580 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+042 e81f0fcf6aef gain=3fed32f0a59f3e6c trim=3fed32f0a59f3e6c cur=4900 pos=2500 cf=4900 bf=22100 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+043 95fc3313341a gain=3fec7faccf070e07 trim=3fec7faccf070e07 cur=5380 pos=2980 cf=5380 bf=21620 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+044 f6f57d217589 gain=3febcc68f86edda2 trim=3febcc68f86edda2 cur=5860 pos=3460 cf=5860 bf=21140 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+045 7cb7978ef809 gain=3feca3872d257e1b trim=3feca3872d257e1b cur=6340 pos=3940 cf=6340 bf=20660 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+046 35d312bf4227 gain=3fed7aa561dc1e94 trim=3fed7aa561dc1e94 cur=6820 pos=4420 cf=6820 bf=20180 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+047 2d6a60e7effe gain=3fee51c39692bf0d trim=3fee51c39692bf0d cur=7300 pos=4900 cf=7300 bf=19700 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+048 739ff250dae6 gain=0000000000000000 trim=3fef28e1cb495f86 cur=7780 pos=100 cf=100 bf=800 buf=0 under=1 hand=2 seg=9:16800,1060,1,5
+049 1cb2eead31e3 gain=3fedba21dd0af8bd trim=3fedba21dd0af8bd cur=580 pos=100 cf=580 bf=320 buf=0 under=1 hand=2 seg=10:23520,100,1,7
+050 80cb4579d30d gain=3fec4b61eecc91f4 trim=3fec4b61eecc91f4 cur=900 pos=100 cf=900 bf=0 buf=0 under=1 hand=2 seg=11:24320,900,0,7
+051 4c7eea521d22 gain=0000000000000000 trim=3feadca2008e2b2b cur=900 pos=100 cf=900 bf=0 buf=0 under=1 hand=2 seg=11:24320,900,0,7
+052 4c7eea521d22 gain=0000000000000000 trim=3fe96de2124fc462 cur=900 pos=100 cf=900 bf=0 buf=0 under=1 hand=2 seg=11:24320,900,0,7
+053 f0da8bbd3b0e gain=3feabe4e750c9d1b trim=3feabe4e750c9d1b cur=480 pos=0 cf=480 bf=1020 buf=0 under=1 hand=2 seg=12:25440,0,1,8 ev=started:1000000004.stereo@23520 log=source 1000000005.atmos: file reports 1500 frames but the opened inode holds 1203 (replaced under us); reading our inode
+054 9c22ce076b00 gain=3fec0ebad7c975d4 trim=3fec0ebad7c975d4 cur=960 pos=0 cf=960 bf=540 buf=0 under=1 hand=2 seg=12:25440,0,1,8
+055 0b919d59d634 gain=3fed5f273a864e8d trim=3fed5f273a864e8d cur=1203 pos=0 cf=1203 bf=297 buf=0 under=1 hand=2 seg=13:26643,1203,0,8 ev=ended:1000000004.stereo@24320
+056 4c7eea521d22 gain=0000000000000000 trim=3feeaf939d432746 cur=1203 pos=0 cf=1203 bf=297 buf=0 under=1 hand=2 seg=13:26643,1203,0,8
+057 4c7eea521d22 gain=0000000000000000 trim=3fefffffffffffff cur=1203 pos=0 cf=1203 bf=297 buf=0 under=1 hand=2 seg=13:26643,1203,0,8 ev=started:1000000005.atmos@25440
+058 61349e18c7e2 gain=3ff0000000000000 trim=3ff0000000000000 cur=480 pos=0 cf=480 bf=520 buf=0 under=1 hand=2 seg=14:27840,0,1,9
+059 1ef00b5c3cc6 gain=3ff0000000000000 trim=3ff0000000000000 cur=800 pos=0 cf=800 bf=0 buf=0 under=1 hand=2 seg=15:28640,800,0,9 log=source 1000000006.atmos: complete file shrank from 1000 to 800 frames
+060 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=800 pos=0 cf=800 bf=0 buf=0 under=1 hand=2 seg=15:28640,800,0,9 ev=ended:1000000005.atmos@26643
+061 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=800 pos=0 cf=800 bf=0 buf=0 under=1 hand=2 seg=15:28640,800,0,9
+062 cec03cd83d02 gain=3ff0000000000000 trim=3ff0000000000000 cur=480 pos=0 cf=480 bf=20 buf=0 under=1 hand=2 seg=16:29760,0,1,10 ev=started:1000000006.atmos@27840
+063 29c92648957e gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=2000 buf=1 under=2 hand=3 seg=17:30260,0,0,11 log=handoff 1000000007.stereo -> 1000000008.atmos at stream frame 30260 (cursor 500)|source 1000000008.atmos: file reports 2000 frames but the opened inode holds 600 (replaced under us); reading our inode|starvation start: 1000000008.atmos cursor 0 available 600 (lead 12 ms), episode 2
+064 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=2000 buf=1 under=2 hand=3 seg=17:30260,0,0,11 ev=ended:1000000006.atmos@28640
+065 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=2000 buf=1 under=2 hand=3 seg=17:30260,0,0,11
+066 88f451c7bcd6 gain=3ff0000000000000 trim=3ff0000000000000 cur=480 pos=0 cf=480 bf=1520 buf=0 under=2 hand=3 seg=18:31680,0,1,11 ev=started:1000000007.stereo@29760 log=starvation end: 1000000008.atmos cursor 0 available 600 (lead 12 ms)
+067 019d6679c606 gain=3ff0000000000000 trim=3ff0000000000000 cur=600 pos=0 cf=600 bf=1400 buf=0 under=2 hand=3 seg=19:32280,600,0,11
+068 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=600 pos=0 cf=600 bf=1400 buf=0 under=2 hand=3 seg=19:32280,600,0,11 ev=ended:1000000007.stereo@30260
+069 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=100 pos=100 cf=100 bf=600 buf=1 under=3 hand=3 seg=20:33120,100,0,12 log=starvation start: 1000000009.stereo cursor 100 available 700 (lead 12 ms), episode 3
+070 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=100 pos=100 cf=100 bf=600 buf=1 under=3 hand=3 seg=20:33120,100,0,12 ev=started:1000000008.atmos@31680
+071 b3a2d10b8ff4 gain=3ff0000000000000 trim=3ff0000000000000 cur=580 pos=100 cf=580 bf=120 buf=0 under=3 hand=3 seg=21:34080,100,1,12 log=starvation end: 1000000009.stereo cursor 100 available 700 (lead 12 ms)
+072 b11da8b9c7e2 gain=3ff0000000000000 trim=3ff0000000000000 cur=700 pos=100 cf=700 bf=0 buf=0 under=3 hand=3 seg=22:34680,700,0,12 ev=ended:1000000008.atmos@32280
+073 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=700 pos=100 cf=700 bf=0 buf=0 under=3 hand=3 seg=22:34680,700,0,12
+074 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=1000 buf=0 under=3 hand=3 seg=23:35520,0,0,13
+075 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=1000 buf=0 under=3 hand=3 seg=23:35520,0,0,13 ev=started:1000000009.stereo@34080
+076 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=2000 buf=1 under=4 hand=3 seg=24:36480,0,0,14 log=starvation start: 1000000011.stereo cursor 0 available 2000 (lead 42 ms), episode 4
+077 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=2000 buf=1 under=4 hand=3 seg=24:36480,0,0,14 ev=ended:1000000009.stereo@34680
+078 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=2000 buf=1 under=4 hand=3 seg=24:36480,0,0,14 ev=ended:1000000010.atmos@35520
+079 fb10a55683c4 gain=3ff0000000000000 trim=3ff0000000000000 cur=480 pos=0 cf=480 bf=1520 buf=0 under=4 hand=3 seg=25:37920,0,1,14 log=starvation end: 1000000011.stereo cursor 0 available 2000 (lead 42 ms)
+080 183dc297aa4b gain=3ff0000000000000 trim=3ff0000000000000 cur=960 pos=0 cf=960 bf=1040 buf=0 under=4 hand=3 seg=25:37920,0,1,14
+081 abdf73fa41bb gain=3ff0000000000000 trim=3ff0000000000000 cur=1440 pos=0 cf=1440 bf=560 buf=0 under=4 hand=3 seg=25:37920,0,1,14
+082 66afd3386451 gain=3ff0000000000000 trim=3ff0000000000000 cur=1920 pos=0 cf=1920 bf=80 buf=0 under=4 hand=3 seg=25:37920,0,1,14
+083 3bab03b15d3d gain=3ff0000000000000 trim=3ff0000000000000 cur=2000 pos=0 cf=2000 bf=0 buf=0 under=4 hand=3 seg=26:39920,2000,0,14 ev=started:1000000011.stereo@37920
+084 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=2000 pos=480 cf=2000 bf=0 buf=0 under=4 hand=3 seg=26:39920,2000,0,14
+085 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=0 buf=0 under=4 hand=3 seg=27:40800,0,0,15
+086 4c7eea521d22 gain=0000000000000000 trim=3ff0000000000000 cur=0 pos=0 cf=0 bf=0 buf=0 under=4 hand=3 seg=27:40800,0,0,15
+087 1e13d62e02f7 gain=3ff0000000000000 trim=3ff0000000000000 cur=8480 pos=8000 cf=8480 bf=520 buf=0 under=4 hand=3 seg=28:41760,8000,1,16
+088 be24a240c92f gain=3ff0000000000000 trim=3ff0000000000000 cur=8960 pos=8000 cf=8960 bf=40 buf=0 under=4 hand=3 seg=28:41760,8000,1,16 ev=ended:1000000011.stereo@39920
+089 dfe8c048eece gain=0000000000000000 trim=3ff0000000000000 cur=9000 pos=8900 cf=8900 bf=0 buf=0 under=4 hand=3 seg=29:42760,9000,0,16
+090 fa527ac23255 gain=3feda35c4a97c418 trim=3feda35c4a97c418 cur=380 pos=0 cf=380 bf=26620 buf=0 under=4 hand=4 seg=31:43300,0,1,18 log=handoff 1000000001.atmos -> 1000000003.atmos at stream frame 43300 (cursor 9000)
+091 e69e507dae99 gain=3feb46b8952f8830 trim=3feb46b8952f8830 cur=860 pos=0 cf=860 bf=26140 buf=0 under=4 hand=4 seg=31:43300,0,1,18 ev=started:1000000001.atmos@41760
+092 5f43d92587aa gain=0000000000000000 trim=3fe8ea14dfc74c48 cur=1340 pos=0 cf=1340 bf=25660 buf=0 under=4 hand=4 seg=31:43300,0,1,18
+093 4c7eea521d22 gain=0000000000000000 trim=3fe68d712a5f1060 cur=1340 pos=0 cf=1340 bf=25660 buf=0 under=4 hand=4 seg=32:44640,1340,0,18
+094 48ab4a591936 gain=3fe430cd74f6d478 trim=3fe430cd74f6d478 cur=1820 pos=0 cf=1820 bf=25180 buf=0 under=4 hand=4 seg=33:45120,1340,1,18 ev=ended:1000000001.atmos@42760
+095 61d62296a035 gain=3fe430cd74f6d478 trim=3fe430cd74f6d478 cur=2300 pos=380 cf=2300 bf=24700 buf=0 under=4 hand=4 seg=33:45120,1340,1,18 ev=ended:1000000001.atmos@43300,started:1000000003.atmos@43300
+096 f192bb7bf24b gain=0000000000000000 trim=3fe430cd74f6d478 cur=2780 pos=860 cf=2780 bf=24220 buf=0 under=4 hand=4 seg=33:45120,1340,1,18
+stream 73915ad1bfd68d69986601c064ac36d3f565b65f9f2af3897d5fe87c1238478c
+log set_source 1000000001.atmos @ 0
+log seek 1000000001.atmos -> 240
+log set_next_source 1000000002.stereo
+log pause 1000000001.atmos @ 2640
+log resume 1000000001.atmos @ 3120
+log seek 1000000001.atmos -> 6000
+log sound check off
+log sound check on
+log set_next_source 1000000003.atmos
+log seek 1000000003.atmos -> 9999
+log set_source 1000000004.stereo @ 100
+log set_source 1000000005.atmos @ 0
+log set_source 1000000006.atmos @ 0
+log set_source 1000000007.stereo @ 0
+log set_next_source 1000000008.atmos
+log set_source 1000000009.stereo @ 100
+log set_source 1000000010.atmos @ 0
+log set_source 1000000011.stereo @ 0
+log set_source none @ 0
+log set_source 1000000001.atmos @ 8000
+log set_next_source 1000000003.atmos
+log seek 1000000001.atmos -> 8900
+log pause 1000000003.atmos @ 860
+log resume 1000000003.atmos @ 1340

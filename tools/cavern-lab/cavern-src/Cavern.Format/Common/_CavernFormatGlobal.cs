@@ -1,0 +1,16 @@
+﻿namespace Cavern.Format.Common {
+    /// <summary>
+    /// Settings related to the entirety of the Cavern.Format library.
+    /// </summary>
+    public static class CavernFormatGlobal {
+        /// <summary>
+        /// Enables more thorough checks for conditions that are mandated by standards.
+        /// </summary>
+        public static bool Pedantic { get; set; }
+
+        /// <summary>
+        /// Disables checks for conditions that don't inherently break operation, but are mandated by standards.
+        /// </summary>
+        public static bool Unsafe { get; set; }
+    }
+}

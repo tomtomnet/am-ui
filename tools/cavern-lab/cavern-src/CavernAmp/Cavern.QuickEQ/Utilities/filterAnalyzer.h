@@ -1,0 +1,74 @@
+#ifndef FILTERANALYZER_H
+#define FILTERANALYZER_H
+
+#include "../../Cavern/Utilities/complex.h"
+#include "../../Cavern/Utilities/fftcache.h"
+#include "../../Cavern/Filters/peakingEQ.h"
+
+/// Class
+// Measures properties of a filter, like frequency/impulse response, gain, or delay.
+class FilterAnalyzer {
+    PeakingEQ *filter;
+    int sampleRate;
+
+    int resolution;
+    double startQ;
+    double gainPrecision;
+    double minGain;
+    double maxGain;
+    int iterations;
+    double maxFrequency;
+    double minFrequency;
+
+    float *impulseReference;
+    FFTCache *cache;
+    float *spectrum;
+
+public:
+    FilterAnalyzer(PeakingEQ *filter, const int sampleRate);
+    void Reset(PeakingEQ *filter, const int sampleRate);
+    void ClearFilter();
+    int GetSampleRate() { return sampleRate; }
+    float* GetSpectrum();
+    ~FilterAnalyzer();
+
+    int GetResolution() { return resolution; }
+    void SetResolution(const int value);
+    // TODO: move this to PeakingEqualizer
+    double GetStartQ() { return startQ; }
+    void SetStartQ(const double value) { startQ = value; }
+    double GetGainPrecision() { return gainPrecision; }
+    void SetGainPrecision(const double value) { gainPrecision = value; }
+    double GetMinGain() { return minGain; }
+    void SetMinGain(const double value) { minGain = value; }
+    double GetMaxGain() { return maxGain; }
+    void SetMaxGain(const double value) { maxGain = value; }
+    int GetIterations() { return iterations; }
+    void SetIterations(const int value) { iterations = value; }
+    double GetMaxFrequency() { return maxFrequency; }
+    void SetMaxFrequency(const double value) { maxFrequency = value; }
+    double GetMinFrequency() { return minFrequency; }
+    void SetMinFrequency(const double value) { minFrequency = value; }
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/// Exports
+// Filter analyzer constructor.
+FilterAnalyzer* DLL_EXPORT FilterAnalyzer_Create(const int sampleRate, const double maxGain, const double minGain, const double gainPrecision, const double startQ, const int iterations);
+// Set maximum frequency (0 = Nyquist).
+void DLL_EXPORT FilterAnalyzer_SetMaxFrequency(FilterAnalyzer *analyzer, const double maxFrequency);
+// Set minimum frequency.
+void DLL_EXPORT FilterAnalyzer_SetMinFrequency(FilterAnalyzer *analyzer, const double minFrequency);
+// Reset a filter with a PeakingEQ.
+void DLL_EXPORT FilterAnalyzer_AddPEQ(FilterAnalyzer *analyzer, double centerFreq, double q, double gain);
+// Dispose a filter analyzer.
+void DLL_EXPORT FilterAnalyzer_Dispose(FilterAnalyzer *analyzer);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // FILTERANALYZER_H

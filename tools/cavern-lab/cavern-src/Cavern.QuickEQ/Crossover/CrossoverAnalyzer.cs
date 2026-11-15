@@ -1,0 +1,319 @@
+﻿using System;
+
+using Cavern.Channels;
+using Cavern.QuickEQ.Crossover.Enums;
+using Cavern.QuickEQ.Utilities;
+using Cavern.Utilities;
+using Cavern.Utilities.Threading;
+
+namespace Cavern.QuickEQ.Crossover {
+    /// <summary>
+    /// Tools for analyzing and tuning measured or generated crossovers.
+    /// </summary>
+    public class CrossoverAnalyzer {
+        /// <summary>
+        /// The lowest possible resulting crossover frequency.
+        /// </summary>
+        public float MinFreq { get; set; } = 40;
+
+        /// <summary>
+        /// The highest possible resulting crossover frequency.
+        /// </summary>
+        public float MaxFreq { get; set; } = 100;
+
+        /// <summary>
+        /// Steps between checked crossover frequencies.
+        /// </summary>
+        public float Precision { get; set; } = 10;
+
+        /// <summary>
+        /// When not null, the minimum crossover frequency is the lowest point where the low and high outputs only differ below this many decibels.
+        /// Only use this for calibrated systems.
+        /// </summary>
+        public float? CalibrationTolerance { get; set; }
+
+        /// <summary>
+        /// The type of crossover to use.
+        /// </summary>
+        public CrossoverType Type { get; protected set; }
+
+        /// <summary>
+        /// The sample rate of recorded or simulated transfer functions of each channel that will be analyzed.
+        /// </summary>
+        public int SampleRate { get; protected set; }
+
+        /// <summary>
+        /// Filter order (must be even, 2 = 12 dB/octave). Only used for Biquad and SyntheticBiquad types.
+        /// </summary>
+        public int Order { get; protected set; }
+
+        /// <summary>
+        /// Crossover slope type. Only used for Biquad and SyntheticBiquad types.
+        /// </summary>
+        public CrossoverSlope Slope { get; protected set; }
+
+        /// <summary>
+        /// A multichannel crossover analyzer instance.
+        /// </summary>
+        /// <param name="type">The type of crossover to use</param>
+        /// <param name="sampleRate">The sample rate of recorded or simulated transfer functions of each channel
+        /// that will be analyzed</param>
+        public CrossoverAnalyzer(CrossoverType type, int sampleRate) : this(type, sampleRate, 2, CrossoverSlope.Butterworth) { }
+
+        /// <summary>
+        /// A multichannel crossover analyzer instance with custom order and slope.
+        /// </summary>
+        /// <param name="type">The type of crossover to use</param>
+        /// <param name="sampleRate">The sample rate of recorded or simulated transfer functions of each channel
+        /// that will be analyzed</param>
+        /// <param name="order">Filter order (must be even, 2 = 12 dB/octave). Only used for Biquad and SyntheticBiquad types.</param>
+        /// <param name="slope">Crossover slope type. Only used for Biquad and SyntheticBiquad types.</param>
+        public CrossoverAnalyzer(CrossoverType type, int sampleRate, int order, CrossoverSlope slope) {
+            Type = type;
+            SampleRate = sampleRate;
+            Order = order;
+            Slope = slope;
+        }
+
+        /// <summary>
+        /// Find the lowest crossover point on a system by comparing all channels to each other and
+        /// checking until what frequency they are similar.
+        /// </summary>
+        /// <param name="channels">Transfer functions of each channel - lengths must match</param>
+        /// <param name="refChannel">The channel index of where crossovered bass goes</param>
+        /// <param name="sampleRate">Measurement sample rate</param>
+        /// <param name="minFreq">Minimum checked frequency</param>
+        /// <param name="allowedError">Ratio of change in spectrum between channels is allowed to consider them the same</param>
+        public static float FindExistingCrossover(MeasurementPosition channels, int refChannel, int sampleRate, float minFreq, float allowedError) {
+            allowedError *= allowedError; // Work with squared magnitudes
+            Complex[] reference = channels[refChannel];
+            float[] work = new float[reference.Length];
+            int checkedFrom = (int)(minFreq / sampleRate * work.Length);
+            int minBand = work.Length >> 1;
+            for (int i = 0; i < channels.Length; i++) {
+                if (i == refChannel) {
+                    continue;
+                }
+                Complex[] other = channels[i];
+                for (int j = checkedFrom; j < minBand; j++) { // Convert to squared deconvolution magnitude
+                    work[j] = (reference[j] * (1 / other[j].Magnitude)).SqrMagnitude;
+                }
+                for (int j = 0; j < checkedFrom; j++) {
+                    work[j] = work[checkedFrom]; // So smoothing won't cause issues
+                }
+                work = GraphUtils.SmoothUniform(work, Math.Max(QMath.FrequencyToBin(10, sampleRate, reference.Length), 1));
+                float upperError = allowedError * work[checkedFrom],
+                    lowerError = 1 / allowedError * work[checkedFrom];
+                for (int band = checkedFrom; band < minBand; band++) {
+                    if (work[band] > upperError || work[band] < lowerError) {
+                        if (minBand > band) {
+                            minBand = band;
+                        }
+                        break;
+                    }
+                }
+            }
+            return (float)minBand / work.Length * sampleRate;
+        }
+
+        /// <summary>
+        /// Group the channels by a binary function (for example, screen and surround channels), and get their average crossover
+        /// frequencies or 0 if a group has no channels.
+        /// </summary>
+        /// <param name="frequencies">Crossover points for all channels, could be generated with
+        /// <see cref="FindCrossoverFrequencies(MeasurementPosition, Channel[])"/></param>
+        /// <param name="channels">The channel layout where the measurement was taken,
+        /// or null if unknown - in that case, a reference layout with that channel count will be used</param>
+        /// <param name="selector">The function that results true for channel indexes in the group</param>
+        /// <remarks>LFE channels are not considered in any group.</remarks>
+        public static (float inGroup, float outGroup) Group(float[] frequencies, Channel[] channels, Func<int, bool> selector) {
+            channels ??= ChannelPrototype.ToLayout(ChannelPrototype.GetStandardMatrix(frequencies.Length));
+            int inCount = 0,
+                outCount = 0;
+            float inTotal = 0,
+                outTotal = 0;
+            for (int i = 0; i < frequencies.Length; i++) {
+                if (!channels[i].LFE) {
+                    if (selector(i)) {
+                        inCount++;
+                        inTotal += frequencies[i];
+                    } else {
+                        outCount++;
+                        outTotal += frequencies[i];
+                    }
+                }
+            }
+            if (inCount != 0) {
+                inTotal /= inCount;
+            }
+            if (outCount != 0) {
+                outTotal /= outCount;
+            }
+            return (inTotal, outTotal);
+        }
+
+        /// <summary>
+        /// Get the transfer function of all LFE channels playing together.
+        /// </summary>
+        /// <param name="measurement">Measurements or simulations at the reference position</param>
+        /// <param name="channels">The channel layout where the <paramref name="measurement"/> was taken</param>
+        /// <remarks>This function does account for the 10 dB gain of LFE channels.</remarks>
+        protected static Complex[] GetCombinedLFETransfer(MeasurementPosition measurement, Channel[] channels) {
+            Complex[] subs = null;
+            for (int i = 0; i < channels.Length; i++) {
+                if (channels[i].LFE) {
+                    if (subs == null) {
+                        subs = measurement[i].FastClone();
+                    } else {
+                        subs.Add(measurement[i]);
+                    }
+                }
+            }
+
+            subs?.Gain(Crossover.minus10dB);
+            return subs;
+        }
+
+        /// <summary>
+        /// Calculate a single crossover point's score for comparing it to others.
+        /// </summary>
+        /// <param name="type">The type of crossover to use</param>
+        /// <param name="lowTransfer">Transfer function of the low-frequency path</param>
+        /// <param name="highTransfer">Transfer function of the high-frequency path</param>
+        /// <param name="sampleRate">Sample rate where the transfer functions were recorded</param>
+        /// <param name="freq">Crossover point frequency to score</param>
+        /// <param name="cache">Preallocated FFT cache for optimization</param>
+        protected static float GetCrossoverValue(CrossoverType type, Complex[] lowTransfer, Complex[] highTransfer, int sampleRate, float freq, FFTCache cache) {
+            Complex[] lowCurrent = lowTransfer.FastClone();
+            Complex[] highCurrent = highTransfer.FastClone();
+            Complex[] work = new Complex[lowCurrent.Length];
+
+            Crossover.GetLowpass(type, sampleRate, freq, cache.Size).ParseForFFT(work);
+            work.InPlaceFFT(cache);
+            lowCurrent.Convolve(work);
+
+            Crossover.GetHighpass(type, sampleRate, freq, cache.Size).ParseForFFT(work);
+            work.InPlaceFFT(cache);
+            highCurrent.Convolve(work);
+
+            lowCurrent.Add(highCurrent);
+            return lowCurrent.GetRMSMagnitude();
+        }
+
+        /// <summary>
+        /// Calculate a single crossover point's score for comparing it to others with custom order and slope.
+        /// </summary>
+        /// <param name="type">The type of crossover to use</param>
+        /// <param name="lowTransfer">Transfer function of the low-frequency path</param>
+        /// <param name="highTransfer">Transfer function of the high-frequency path</param>
+        /// <param name="sampleRate">Sample rate where the transfer functions were recorded</param>
+        /// <param name="freq">Crossover point frequency to score</param>
+        /// <param name="order">Filter order (must be even, 2 = 12 dB/octave). Only used for Biquad and SyntheticBiquad types.</param>
+        /// <param name="slope">Crossover slope type. Only used for Biquad and SyntheticBiquad types.</param>
+        /// <param name="cache">Preallocated FFT cache for optimization</param>
+        protected static float Score(CrossoverType type, Complex[] lowTransfer, Complex[] highTransfer, int sampleRate, float freq,
+            int order, CrossoverSlope slope, FFTCache cache) {
+            Complex[] lowCurrent = lowTransfer.FastClone();
+            Complex[] highCurrent = highTransfer.FastClone();
+            Complex[] work = new Complex[lowCurrent.Length];
+
+            Crossover.GetLowpass(type, sampleRate, freq, cache.Size, order, slope).ParseForFFT(work);
+            work.InPlaceFFT(cache);
+            lowCurrent.Convolve(work);
+
+            Crossover.GetHighpass(type, sampleRate, freq, cache.Size, order, slope).ParseForFFT(work);
+            work.InPlaceFFT(cache);
+            highCurrent.Convolve(work);
+
+            lowCurrent.Add(highCurrent);
+            return lowCurrent.GetRMSMagnitude();
+        }
+
+        /// <summary>
+        /// Gets the optimal frequency to put the crossover point at for a single channel by simulation.
+        /// </summary>
+        /// <param name="lowTransfer">Transfer function of the low-frequency path</param>
+        /// <param name="highTransfer">Transfer function of the high-frequency path</param>
+        /// <param name="cache">Preallocated FFT cache for optimization</param>
+        /// <remarks>This function doesn't account for the 10 dB gain of LFE channels as it could be used for determining the
+        /// crossover point of multiway speakers too.</remarks>
+        public float FindCrossoverFrequency(Complex[] lowTransfer, Complex[] highTransfer, FFTCache cache) {
+            float bestValue = float.NegativeInfinity;
+            float bestFrequency = CalibrationTolerance.HasValue ? GetAbsoluteMinimumFreq(lowTransfer, highTransfer, SampleRate) : MinFreq;
+            for (float freq = bestFrequency; freq <= MaxFreq; freq += Precision) {
+                float value = Score(Type, lowTransfer, highTransfer, SampleRate, freq, Order, Slope, cache);
+                if (bestValue < value) {
+                    bestValue = value;
+                    bestFrequency = freq;
+                }
+            }
+            return bestFrequency;
+        }
+
+        /// <summary>
+        /// Gets the optimal frequencies to put the crossover point at for each channel by simulation.
+        /// </summary>
+        /// <param name="measurement">Measurements or simulations at the reference position</param>
+        /// <param name="channels">The channel layout where the <paramref name="measurement"/> was taken,
+        /// or null if unknown - in that case, a reference layout with that channel count will be used</param>
+        /// <returns>The frequencies where each channel's crossover should be positioned or null if
+        /// bypassing the crossover is recommended</returns>
+        /// <remarks>This function does account for the 10 dB gain of LFE channels.</remarks>
+        public float[] FindCrossoverFrequencies(MeasurementPosition measurement, Channel[] channels) {
+            using FFTCachePool pool = new FFTCachePool(measurement[0].Length);
+            return FindCrossoverFrequencies(measurement, channels, pool);
+        }
+
+        /// <summary>
+        /// Gets the optimal frequencies to put the crossover point at for each channel by simulation.
+        /// </summary>
+        /// <param name="measurement">Measurements or simulations at the reference position</param>
+        /// <param name="channels">The channel layout where the <paramref name="measurement"/> was taken,
+        /// or null if unknown - in that case, a reference layout with that channel count will be used</param>
+        /// <param name="pool">Preallocated FFT cache pool</param>
+        /// <returns>The frequencies where each channel's crossover should be positioned or null if
+        /// bypassing the crossover is recommended</returns>
+        /// <remarks>This function does account for the 10 dB gain of LFE channels.</remarks>
+        public virtual float[] FindCrossoverFrequencies(MeasurementPosition measurement, Channel[] channels, FFTCachePool pool) {
+            channels ??= ChannelPrototype.ToLayout(ChannelPrototype.GetStandardMatrix(measurement.Length));
+            Complex[] subs = GetCombinedLFETransfer(measurement, channels);
+            if (subs == null) {
+                return null;
+            }
+
+            float[] result = new float[channels.Length];
+            Parallelizer.ForUnchecked(0, channels.Length, i => {
+                if (!channels[i].LFE) {
+                    FFTCache cache = pool.Lease();
+                    result[i] = FindCrossoverFrequency(subs, measurement[i], cache);
+                    pool.Return(cache);
+                }
+            });
+            return result;
+        }
+
+        /// <summary>
+        /// Get the frequency below which the crossover cannot be set because of severe gain loss.
+        /// </summary>
+        /// <param name="lowTransfer">Transfer function of the low-frequency path</param>
+        /// <param name="highTransfer">Transfer function of the high-frequency path</param>
+        /// <param name="sampleRate">Sample rate where the transfer functions were recorded</param>
+        float GetAbsoluteMinimumFreq(Complex[] lowTransfer, Complex[] highTransfer, int sampleRate) {
+            float toleranceDb = CalibrationTolerance.Value;
+            int maxBin = QMath.FrequencyToBin(MaxFreq, sampleRate, lowTransfer.Length);
+            int minBin = QMath.FrequencyToBin(MinFreq, sampleRate, lowTransfer.Length);
+
+            for (int bin = maxBin; bin >= minBin; bin--) {
+                float highMagnitude = highTransfer[bin].Magnitude;
+                if (highMagnitude > 0) {
+                    float dbDiff = MathF.Abs(QMath.GainToDb(lowTransfer[bin].Magnitude / highMagnitude));
+                    if (dbDiff > toleranceDb) {
+                        float freq = bin / (float)lowTransfer.Length * sampleRate;
+                        return QMath.RoundBy(freq, MinFreq, Precision);
+                    }
+                }
+            }
+            return MinFreq;
+        }
+    }
+}

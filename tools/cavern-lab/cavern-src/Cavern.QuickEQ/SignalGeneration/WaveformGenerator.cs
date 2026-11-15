@@ -1,0 +1,159 @@
+﻿using System;
+using System.Runtime.CompilerServices;
+
+using Cavern.Filters;
+using Cavern.QuickEQ.Equalization;
+using Cavern.Utilities;
+
+namespace Cavern.QuickEQ.SignalGeneration {
+    /// <summary>
+    /// Generates various signals.
+    /// </summary>
+    public static class WaveformGenerator {
+        /// <summary>
+        /// Generates a cosine wave signal.
+        /// </summary>
+        /// <param name="frequency">The frequency of the cosine wave in periods/<paramref name="length"/></param>
+        /// <param name="length">The length of the generated signal in samples</param>
+        /// <remarks>No windowing is used, and a click will be heard if the last period doesn't end at
+        /// the <paramref name="length"/>.</remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float[] Cosine(float frequency, int length) => Cosine(frequency, length, length);
+
+        /// <summary>
+        /// Generates a cosine wave signal.
+        /// </summary>
+        /// <param name="frequency">The frequency of the cosine wave in Hertz</param>
+        /// <param name="length">The length of the generated signal in samples</param>
+        /// <param name="sampleRate">Samples per second</param>
+        /// <remarks>No windowing is used, and a click will be heard if the last period doesn't end at
+        /// the <paramref name="length"/>.</remarks>
+        public static float[] Cosine(float frequency, int length, int sampleRate) {
+            float[] result = new float[length];
+            float mul = 2 * MathF.PI * frequency / sampleRate;
+            for (int i = 0; i < length; i++) {
+                result[i] = MathF.Cos(mul * i);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Create a Dirac-delta signal of given sample count.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float[] DiracDelta(int length) => DiracDelta(length, 0);
+
+        /// <summary>
+        /// Create a Dirac-delta signal of given sample count, with the peak at an <paramref name="offset"/> sample.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float[] DiracDelta(int length, int offset) {
+            float[] result = new float[length];
+            result[offset] = 1;
+            return result;
+        }
+
+        /// <summary>
+        /// Generates a Dirac-delta in Fourier-space (constant 1).
+        /// </summary>
+        public static Complex[] DiracFourier(int length) {
+            Complex[] result = new Complex[length];
+            for (int i = 0; i < length; i++) {
+                result[i].Real = 1;
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Generates precise pink noise through EQing white noise.
+        /// </summary>
+        /// <param name="length">The length of the generated noise in samples</param>
+        /// <param name="sampleRate">Sample rate of the </param>
+        public static float[] PinkNoise(int length, int sampleRate) {
+            int workingLength = QMath.Base2Ceil(length);
+            float[] result = WhiteNoise(workingLength);
+            Equalizer eq = new Equalizer();
+            const double startFreq = 10;
+            double nyquist = sampleRate / 2.0;
+            eq.AddBand(new Band(startFreq, 0));
+            // Pink noise bands lose 3 dB/octave, which is 10 dB/decade
+            eq.AddBand(new Band(nyquist, -10 * Math.Log(nyquist) / Math.Log(startFreq)));
+            eq.DownsampleLogarithmically(4096, startFreq, nyquist);
+            result = FastConvolver.ConvolveSafe(result, eq.GetConvolution(sampleRate, workingLength));
+            Array.Resize(ref result, length);
+            WaveformUtils.Gain(result, 10); // Stable normalization
+            return result;
+        }
+
+        /// <summary>
+        /// Generates a sine wave signal.
+        /// </summary>
+        /// <param name="frequency">The frequency of the sine wave in periods/<paramref name="length"/></param>
+        /// <param name="length">The length of the generated signal in samples</param>
+        /// <remarks>No windowing is used, and a click will be heard if the last period doesn't end at
+        /// the <paramref name="length"/>.</remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float[] Sine(float frequency, int length) => Sine(frequency, length, length);
+
+        /// <summary>
+        /// Generates a sine wave signal.
+        /// </summary>
+        /// <param name="frequency">The frequency of the sine wave in Hertz</param>
+        /// <param name="length">The length of the generated signal in samples</param>
+        /// <param name="sampleRate">Samples per second</param>
+        /// <remarks>No windowing is used, and a click will be heard if the last period doesn't end at
+        /// the <paramref name="length"/>.</remarks>
+        public static float[] Sine(float frequency, int length, int sampleRate) {
+            float[] result = new float[length];
+            float mul = 2 * MathF.PI * frequency / sampleRate;
+            for (int i = 0; i < length; i++) {
+                result[i] = MathF.Sin(mul * i);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Generates a multitone sine wave signal.
+        /// </summary>
+        /// <param name="frequencies">The frequencies of the sine waves in Hertz</param>
+        /// <param name="length">The length of the generated signal in samples</param>
+        /// <param name="sampleRate">Samples per second</param>
+        /// <remarks>No windowing is used, and a click will be heard if the last period doesn't end at
+        /// the <paramref name="length"/>.</remarks>
+        public static float[] SineMultitone(float[] frequencies, int length, int sampleRate) {
+            float[] result = new float[length];
+            float[] multipliers = new float[frequencies.Length];
+            for (int f = 0; f < frequencies.Length; f++) {
+                multipliers[f] = 2 * MathF.PI * frequencies[f] / sampleRate;
+            }
+            for (int i = 0; i < length; i++) {
+                float sum = 0;
+                for (int f = 0; f < frequencies.Length; f++) {
+                    sum += MathF.Sin(multipliers[f] * i);
+                }
+                result[i] = sum;
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Generates white noise.
+        /// </summary>
+        /// <param name="length">The length of the generated noise in samples</param>
+        public static float[] WhiteNoise(int length) => WhiteNoise(length, -1);
+
+        /// <summary>
+        /// Generates white noise.
+        /// </summary>
+        /// <param name="length">The length of the generated noise in samples</param>
+        /// <param name="seed">Seed for the random number generator, for reproducible noise</param>
+        public static float[] WhiteNoise(int length, int seed) {
+            float[] result = new float[length];
+            Random generator = seed == -1 ? new Random() : new Random(seed);
+            for (int i = 0; i < length; i++) {
+                result[i] = (float)(generator.NextDouble() * 2 - 1);
+            }
+            return result;
+        }
+    }
+}

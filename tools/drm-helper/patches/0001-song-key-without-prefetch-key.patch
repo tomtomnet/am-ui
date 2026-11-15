@@ -1,0 +1,29 @@
+The upstream module picks the AES key by the position of a sample's description: the first uses
+Apple's fixed prefetch key, the second the song's own key. That holds for the masters with audio
+groups, whose stream playlists list both keys. A song Apple encoded only as AAC has a master
+without audio groups: its stream playlists list the song's key alone, its file has one sample
+description, and every sample is encrypted with the song's key. The caller now says which case it
+is (it knows from the playlist), instead of the song's samples being decrypted with the fixed key.
+
+--- a/rust/src/decrypt.rs
++++ b/rust/src/decrypt.rs
+@@ -848,7 +848,10 @@
+     Ok(())
+ }
+ 
+-pub fn decrypt_m4a(key: &[u8; 16], data: Vec<u8>) -> io::Result<Vec<u8>> {
++// `prefetch`: the song's playlist lists Apple's fixed prefetch key next to the song's own key. Then
++// the first sample description is encrypted with the fixed key and the second with the song's key.
++// A playlist that lists the song's key alone has every sample encrypted with that key.
++pub fn decrypt_m4a(key: &[u8; 16], data: Vec<u8>, prefetch: bool) -> io::Result<Vec<u8>> {
+     let SongInfo {
+         samples,
+         subsamples,
+@@ -902,6 +905,7 @@
+ 
+ 
+         let sample_aes = match sample.desc_index {
++            _ if !prefetch => Some(&track_aes),
+             0 => Some(&song_aes),
+             1 => Some(&track_aes),
+             _ => None,

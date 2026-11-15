@@ -1,0 +1,20 @@
+/* am-ui: the dark palette (Apple Music's dark appearance). */
+
+:root {
+  --accent-color: #fa586a;
+  --window-bg-color: #1c1c1e;
+  --window-fg-color: rgba(255, 255, 255, 0.92);
+  --view-bg-color: #1c1c1e;
+  --view-fg-color: rgba(255, 255, 255, 0.92);
+  --headerbar-bg-color: #1c1c1e;
+  --headerbar-backdrop-color: #1c1c1e;
+  --headerbar-shade-color: rgba(0, 0, 0, 0.36);
+  --sidebar-bg-color: #262628;
+  --sidebar-backdrop-color: #262628;
+  --secondary-sidebar-bg-color: #232325;
+  --popover-bg-color: #2c2c2e;
+  --dialog-bg-color: #2c2c2e;
+  --card-bg-color: rgba(255, 255, 255, 0.06);
+}
+
+.player-bar { background-color: #232325; }
