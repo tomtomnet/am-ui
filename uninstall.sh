@@ -108,9 +108,6 @@ if [ -e "$entry" ] && ! entry_is_ours; then
     printf '\nThe application menu entry starts another copy of am-ui: it stays.\n'
 else
     remove "$entry" "$icon"
-    if command -v update-desktop-database >/dev/null 2>&1 && [ -d "$applications" ]; then
-        update-desktop-database -q "$applications" 2>/dev/null || true
-    fi
     if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -e "$data_home/icons/hicolor/index.theme" ]; then
         gtk-update-icon-cache -q -t -f "$data_home/icons/hicolor" 2>/dev/null || true
     fi

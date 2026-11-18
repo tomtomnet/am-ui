@@ -384,7 +384,6 @@ install_desktop_entry() {
     mv -- "$applications/dev.amui.Music.desktop.tmp" "$applications/dev.amui.Music.desktop"
     cp -- "$here/crates/app/resources/icons/scalable/apps/dev.amui.Music.svg" "$icons/dev.amui.Music.svg"
     # menus notice new entries by themselves on most desktops; these only make it immediate
-    if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database -q "$applications" 2>/dev/null || true; fi
     if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -e "$data_home/icons/hicolor/index.theme" ]; then
         gtk-update-icon-cache -q -t -f "$data_home/icons/hicolor" 2>/dev/null || true
     fi
