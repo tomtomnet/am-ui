@@ -1,5 +1,6 @@
-//! The sound settings of the player bar: Dolby Atmos, the audio quality, Sound Check, the downmix
-//! profile (a choice of three, in sight) and the output's preamp.
+//! The sound settings of the player bar: the audio quality and Dolby Atmos, then how Dolby Atmos
+//! becomes stereo (a choice of three, in sight), then the rest. The menu is as tall as a window
+//! of ordinary height allows without scrolling; a lower window scrolls it.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -21,19 +22,18 @@ const QUALITIES: [(AudioQuality, &str, &str); 3] = [
 /// For a player that names no reason of its own.
 const NO_LOSSLESS: &str = "Lossless is not available";
 
-fn switch_row(title: &str, subtitle: &str) -> adw::SwitchRow {
+fn switch_row(title: &str) -> adw::SwitchRow {
     let row = adw::SwitchRow::new();
     row.set_title(title);
-    row.set_subtitle(subtitle);
     row
 }
 
-/// What a downmix profile sounds like, in a line.
+/// What a downmix profile sounds like, in a short line.
 fn profile_subtitle(key: &str) -> &'static str {
     match key {
-        "peqdb" => "Every channel at full level, the LFE boosted",
+        "peqdb" => "Every channel at full level, LFE boosted",
         "apple" => "macOS's own fold-down, without the LFE",
-        "itu" => "The broadcast standard: surrounds and heights lower",
+        "itu" => "The broadcast standard",
         _ => "",
     }
 }
@@ -165,11 +165,24 @@ pub fn quality_row(note: impl Fn(&adw::ComboRow, &str) + 'static) -> adw::ComboR
 }
 
 pub fn button() -> gtk::MenuButton {
-    let atmos = switch_row("Dolby Atmos", "Play the Atmos version when a song has one");
-    let quality = quality_row(|row, note| row.set_subtitle(note));
-    let sound_check = switch_row("Sound Check", "Play every song at a similar loudness");
-    let fallback = switch_row("Stereo When There Is No Atmos", "Otherwise such songs are skipped");
-    let autoplay = switch_row("Autoplay", "Keep playing similar music when the queue ends");
+    let note = gtk::Label::new(None);
+    note.set_xalign(0.0);
+    note.set_wrap(true);
+    note.set_wrap_mode(gtk::pango::WrapMode::WordChar);
+    note.add_css_class("caption");
+    note.add_css_class("dim-label");
+    note.add_css_class("sound-note");
+    let quality = {
+        let note = note.clone();
+        quality_row(move |_, text| {
+            note.set_text(text);
+            note.set_visible(!text.is_empty());
+        })
+    };
+    let atmos = switch_row("Dolby Atmos");
+    let sound_check = switch_row("Sound Check");
+    let fallback = switch_row("Stereo When There Is No Atmos");
+    fallback.set_tooltip_text(Some("Otherwise songs without a Dolby Atmos version are skipped"));
 
     let profiles = ctx().player.playback.downmix_profiles();
     let profile_rows = profile_rows(&profiles);
@@ -185,25 +198,32 @@ pub fn button() -> gtk::MenuButton {
     preamp_row.add_suffix(&preamp);
 
     let playback = adw::PreferencesGroup::new();
-    playback.add(&atmos);
     playback.add(&quality);
-    playback.add(&sound_check);
-    playback.add(&autoplay);
+    playback.add(&atmos);
+    let top = gtk::Box::new(gtk::Orientation::Vertical, 6);
+    top.append(&playback);
+    top.append(&note);
+    // always there: how Dolby Atmos reaches two ears is what this menu is most often opened for
     let downmix = adw::PreferencesGroup::new();
-    downmix.set_title("Downmix");
-    downmix.set_description(Some("How the Dolby Atmos channels become stereo"));
+    downmix.set_title("Dolby Atmos Downmix");
     for (row, _) in &profile_rows {
         downmix.add(row);
     }
-    downmix.set_visible(!profile_rows.is_empty());
+    if profile_rows.is_empty() {
+        let none = adw::ActionRow::new();
+        none.set_title("No Downmix Profiles");
+        none.set_subtitle("The player offers none right now");
+        downmix.add(&none);
+    }
     let output = adw::PreferencesGroup::new();
     output.set_title("Output");
     output.add(&preamp_row);
+    output.add(&sound_check);
     output.add(&fallback);
     output.add(&crate::widgets::equalizer::menu_row());
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 14);
     content.add_css_class("sound-menu");
-    content.append(&playback);
+    content.append(&top);
     content.append(&downmix);
     content.append(&output);
     content.set_size_request(400, -1);
@@ -229,10 +249,10 @@ pub fn button() -> gtk::MenuButton {
 
     // the rows show the player's settings; while they are being set from the player, changes
     // are not sent back to it
-    let updating = std::rc::Rc::new(std::cell::Cell::new(false));
+    let updating = Rc::new(Cell::new(false));
     let update = {
-        let (atmos, sound_check, fallback, autoplay, preamp, updating) =
-            (atmos.clone(), sound_check.clone(), fallback.clone(), autoplay.clone(), preamp.clone(), updating.clone());
+        let (atmos, sound_check, fallback, preamp, updating) =
+            (atmos.clone(), sound_check.clone(), fallback.clone(), preamp.clone(), updating.clone());
         let checks: Vec<gtk::CheckButton> = profile_rows.iter().map(|(_, check)| check.clone()).collect();
         let profiles = profiles.clone();
         move || {
@@ -241,7 +261,6 @@ pub fn button() -> gtk::MenuButton {
             atmos.set_active(view.mode == AudioMode::Atmos);
             sound_check.set_active(view.sound_check);
             fallback.set_active(view.stereo_fallback);
-            autoplay.set_active(view.autoplay);
             for (profile, check) in profiles.iter().zip(&checks) {
                 check.set_active(Some(&profile.key) == view.downmix_profile.as_ref());
             }
@@ -256,9 +275,7 @@ pub fn button() -> gtk::MenuButton {
     update();
     ctx().player.changed.connect(&button, move |_, _| update());
 
-    let send = |row: &adw::SwitchRow,
-                updating: &std::rc::Rc<std::cell::Cell<bool>>,
-                apply: fn(&dyn crate::playback::Playback, bool)| {
+    let send = |row: &adw::SwitchRow, updating: &Rc<Cell<bool>>, apply: fn(&dyn crate::playback::Playback, bool)| {
         let updating = updating.clone();
         row.connect_active_notify(move |row| {
             if !updating.get() {
@@ -269,7 +286,6 @@ pub fn button() -> gtk::MenuButton {
     send(&atmos, &updating, |playback, on| playback.set_mode(if on { AudioMode::Atmos } else { AudioMode::Stereo }));
     send(&sound_check, &updating, |playback, on| playback.set_sound_check(on));
     send(&fallback, &updating, |playback, on| playback.set_stereo_fallback(on));
-    send(&autoplay, &updating, |playback, on| playback.set_autoplay(on));
     for (profile, (_, check)) in profiles.iter().zip(&profile_rows) {
         let (updating, key) = (updating.clone(), profile.key.clone());
         check.connect_toggled(move |check| {
@@ -289,7 +305,7 @@ pub fn button() -> gtk::MenuButton {
     }
     // `--show sound`: open at start (for screenshots)
     if ctx().options.show.as_deref() == Some("sound") {
-        let shown = std::cell::Cell::new(false);
+        let shown = Cell::new(false);
         button.connect_map(move |button| {
             if !shown.replace(true) {
                 let button = button.clone();
