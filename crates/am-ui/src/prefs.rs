@@ -88,11 +88,7 @@ pub fn show_preferences(parent: &impl IsA<gtk::Widget>) {
         view.mode == AudioMode::Atmos,
         |on| crate::app::ctx().player.playback.set_mode(if on { AudioMode::Atmos } else { AudioMode::Stereo }),
     ));
-    let lossless = switch("Lossless", "Play the lossless version instead of AAC", view.lossless, |on| {
-        crate::app::ctx().player.playback.set_lossless(on)
-    });
-    lossless.set_sensitive(view.lossless_available);
-    playback.add(&lossless);
+    playback.add(&crate::widgets::sound_menu::quality_row(|row, note| row.set_subtitle(note)));
     playback.add(&switch("Sound Check", "Play every song at a similar loudness", view.sound_check, |on| {
         crate::app::ctx().player.playback.set_sound_check(on)
     }));

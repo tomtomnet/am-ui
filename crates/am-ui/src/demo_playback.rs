@@ -6,7 +6,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
-use amui::types::{AudioFormat, AudioMode, PlayerState, RepeatMode, Station, Track};
+use amui::types::{AudioFormat, AudioMode, AudioQuality, PlayerState, RepeatMode, Station, Track};
 use gtk::glib;
 
 use crate::playback::{Listener, Playback, PlayerEvent, PlayerView, Profile};
@@ -38,8 +38,12 @@ pub struct DemoPlayback {
 
 impl DemoPlayback {
     pub fn new() -> DemoPlayback {
+        // AMUI_DEMO_NO_LOSSLESS: a machine without the lossless route
+        let without_route = std::env::var_os("AMUI_DEMO_NO_LOSSLESS").is_some();
         let view = PlayerView {
-            lossless_available: true,
+            quality: AudioQuality::Lossless,
+            lossless_available: !without_route,
+            lossless_problem: without_route.then(|| "Lossless needs Apple's own sign-in: use Sign In".to_string()),
             downmix_profile: Some("peqdb".into()),
             preamp: Some(-6.0),
             ..PlayerView::default()
@@ -110,11 +114,12 @@ impl Inner {
     fn format_of(&self, track: &Track) -> (AudioFormat, String) {
         let view = self.view.borrow();
         let has = |name: &str| track.audio_traits.iter().any(|t| t == name);
+        let quality = if view.lossless_available { view.quality } else { AudioQuality::Aac };
         if view.mode == AudioMode::Atmos && has("atmos") {
             (AudioFormat::Atmos, "Dolby Atmos · E-AC-3 JOC 768 kbps · 15 objects".into())
-        } else if view.lossless && has("hi-res-lossless") {
-            (AudioFormat::Lossless, "Hi-Res Lossless · ALAC 24-bit/96 kHz".into())
-        } else if view.lossless && has("lossless") {
+        } else if quality == AudioQuality::HiRes && has("hi-res-lossless") {
+            (AudioFormat::Lossless, "Hi-Res Lossless · ALAC 24-bit/96 kHz · resampled to 48 kHz".into())
+        } else if quality != AudioQuality::Aac && (has("lossless") || has("hi-res-lossless")) {
             (AudioFormat::Lossless, "Lossless · ALAC 24-bit/48 kHz".into())
         } else {
             (AudioFormat::Stereo, "AAC 256 kbps".into())
@@ -403,8 +408,8 @@ impl Playback for DemoPlayback {
         self.refresh_format();
     }
 
-    fn set_lossless(&self, lossless: bool) {
-        self.inner.change(|view| view.lossless = lossless);
+    fn set_quality(&self, quality: AudioQuality) {
+        self.inner.change(|view| view.quality = quality);
         self.refresh_format();
     }
 

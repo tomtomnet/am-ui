@@ -20,7 +20,9 @@ use crate::config::{Config, SAMPLE_RATE};
 use crate::loudness::{self, TARGET_LUFS, lock};
 use crate::output::PlaybackLog;
 use crate::render::PcmSource;
-use crate::types::{AcquireResult, AudioFormat, AudioMode, PlaybackSnapshot, PlayerState, RepeatMode, Station, Track};
+use crate::types::{
+    AcquireResult, AudioFormat, AudioMode, AudioQuality, PlaybackSnapshot, PlayerState, RepeatMode, Station, Track,
+};
 use crate::util;
 
 /// Frames per second, as a float.
@@ -107,7 +109,7 @@ pub(super) struct State {
     pub repeat: RepeatMode,
     pub shuffle: bool,
     pub sound_check: bool,
-    pub lossless: bool,
+    pub quality: AudioQuality,
     pub autoplay: bool,
     // queue
     pub queue: Vec<Arc<QueueEntry>>,
@@ -150,7 +152,7 @@ impl State {
             repeat: RepeatMode::Off,
             shuffle: false,
             sound_check: true,
-            lossless: true,
+            quality: AudioQuality::Lossless,
             autoplay: true,
             queue: Vec::new(),
             original: None,
@@ -200,8 +202,8 @@ impl State {
     }
 
     /// The saved settings: mode, downmix_profile, volume, stereo_fallback, repeat, shuffle,
-    /// sound_check, lossless, autoplay. Anything missing or of another type keeps
-    /// its default.
+    /// sound_check, quality (or the older switch `lossless`), autoplay. Anything missing or of
+    /// another type keeps its default.
     pub fn restore_settings(&mut self, saved: &Map<String, Value>) {
         if let Some(mode) = saved.get("mode").and_then(Value::as_str).and_then(AudioMode::parse) {
             self.mode = mode;
@@ -232,8 +234,14 @@ impl State {
         if let Some(enabled) = flag("sound_check") {
             self.sound_check = enabled;
         }
-        if let Some(enabled) = flag("lossless") {
-            self.lossless = enabled;
+        // `quality` took the place of the switch `lossless`: a file with the switch alone keeps
+        // what it said
+        let quality = saved.get("quality").and_then(Value::as_str).and_then(AudioQuality::parse);
+        match (quality, flag("lossless")) {
+            (Some(quality), _) => self.quality = quality,
+            (None, Some(true)) => self.quality = AudioQuality::Lossless,
+            (None, Some(false)) => self.quality = AudioQuality::Aac,
+            (None, None) => {}
         }
         if let Some(enabled) = flag("autoplay") {
             self.autoplay = enabled;
@@ -250,7 +258,7 @@ impl State {
             "repeat": self.repeat.as_str(),
             "shuffle": self.shuffle,
             "sound_check": self.sound_check,
-            "lossless": self.lossless,
+            "quality": self.quality.as_str(),
         });
         if !self.autoplay {
             settings["autoplay"] = json!(false);
@@ -288,7 +296,7 @@ pub(super) enum Command {
     SetMode(AudioMode),
     SetStereoFallback(bool),
     SetSoundCheck(bool),
-    SetLossless(bool),
+    SetQuality(AudioQuality),
     SetDownmixProfile(String),
     SetPreamp(f64),
     SetAutoplay(bool),
@@ -333,7 +341,7 @@ impl Command {
             Command::SetMode(_) => "set_mode",
             Command::SetStereoFallback(_) => "set_stereo_fallback",
             Command::SetSoundCheck(_) => "set_sound_check",
-            Command::SetLossless(_) => "set_lossless",
+            Command::SetQuality(_) => "set_quality",
             Command::SetDownmixProfile(_) => "set_downmix_profile",
             Command::SetPreamp(_) => "set_preamp",
             Command::SetAutoplay(_) => "set_autoplay",
@@ -532,6 +540,7 @@ impl Shared {
 
     pub fn snapshot(&self) -> PlaybackSnapshot {
         let lossless_available = self.pipeline.lossless_available();
+        let lossless_problem = if lossless_available { None } else { self.pipeline.lossless_problem() };
         let st = lock(&self.state);
         let current = st.current.as_ref();
         let track = match current {
@@ -598,8 +607,10 @@ impl Shared {
             track_gain_db: loudness
                 .filter(|loudness| st.sound_check && loudness.known)
                 .map(|loudness| loudness.trim_db),
-            lossless: st.lossless,
+            lossless: st.quality != AudioQuality::Aac,
             lossless_available,
+            quality: st.quality,
+            lossless_problem,
             autoplay: st.autoplay,
             station: st.station.clone(),
             playing_catalog_id,

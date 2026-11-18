@@ -23,7 +23,7 @@ use crate::downmix::Profile;
 use crate::loudness::{self, TARGET_LUFS, lock};
 use crate::output::TRIM_RAMP_S;
 use crate::render::PcmSource;
-use crate::types::{AudioMode, PlayerState, RepeatMode, Station, Track};
+use crate::types::{AudioMode, AudioQuality, PlayerState, RepeatMode, Station, Track};
 use crate::util::python_repr;
 
 mod autoplay;
@@ -34,8 +34,8 @@ use self::autoplay::Following;
 use self::equivalent::Withdrawn;
 pub(super) use self::resume::Keeper;
 
-/// The four kinds of one song in the PCM cache.
-const ALL_KINDS: [Kind; 4] = [Kind::Atmos, Kind::Stereo, Kind::Lossless, Kind::Binaural];
+/// The kinds of one song in the PCM cache.
+const ALL_KINDS: [Kind; 5] = [Kind::Atmos, Kind::Stereo, Kind::Lossless, Kind::HiRes, Kind::Binaural];
 
 /// Hand the source's Sound Check trim to the output (`ramp_s`: how slowly a change while that
 /// source plays is applied; the default is the output's 50 ms).
@@ -54,6 +54,9 @@ pub(super) struct Worker {
     no_atmos: HashSet<String>,
     /// Songs whose lossless acquisition failed this session.
     no_lossless: HashSet<String>,
+    /// Songs found to have no rendition above 48 kHz, or whose attempt at one failed, this
+    /// session.
+    no_hires: HashSet<String>,
     apply_job: Option<Arc<ApplyJob>>,
     preamp_job: Option<Arc<PreampJob>>,
     pending_preamp: Option<f64>,
@@ -75,6 +78,7 @@ impl Worker {
             next_prepared: None,
             no_atmos: HashSet::new(),
             no_lossless: HashSet::new(),
+            no_hires: HashSet::new(),
             apply_job: None,
             preamp_job: None,
             pending_preamp: None,
@@ -152,7 +156,7 @@ impl Worker {
             Command::SetMode(mode) => self.cmd_set_mode(mode),
             Command::SetStereoFallback(enabled) => self.cmd_set_stereo_fallback(enabled),
             Command::SetSoundCheck(enabled) => self.cmd_set_sound_check(enabled),
-            Command::SetLossless(enabled) => self.cmd_set_lossless(enabled),
+            Command::SetQuality(quality) => self.cmd_set_quality(quality),
             Command::SetDownmixProfile(key) => self.cmd_set_downmix_profile(&key),
             Command::SetPreamp(db) => self.cmd_set_preamp(db),
             Command::SetAutoplay(enabled) => self.cmd_set_autoplay(enabled),
@@ -360,8 +364,8 @@ impl Worker {
     // ------------------------------------------------------------------ kinds
 
     /// The PCM kind the settings ask for; with a track, what is known about it is applied (no
-    /// Atmos version -> the 2-channel kind when the fallback is on; a failed lossless attempt
-    /// -> AAC).
+    /// Atmos version -> the 2-channel kind when the fallback is on; an ALAC rendition it does not
+    /// have -> the next version down).
     fn kind_for_mode(&mut self, track: Option<&Track>) -> Kind {
         let (mode, stereo_fallback) = {
             let st = self.st();
@@ -379,22 +383,46 @@ impl Worker {
         if self.render_profile_active() { Kind::Binaural } else { Kind::Atmos }
     }
 
-    /// The 2-channel kind: lossless (ALAC) when enabled, available and not known to fail for
-    /// this song (its audio traits name no lossless version, or an attempt failed), else stereo
-    /// (AAC).
+    /// The 2-channel kind: what the audio quality asks for, or the highest below it that can be
+    /// had. ALAC needs the lossless route, and a song that is not known to lack the rendition:
+    /// its audio traits do not list it (a song without traits is asked), or an attempt failed.
     fn stereo_kind(&mut self, track: Option<&Track>) -> Kind {
-        let failed = match track {
+        let quality = self.st().quality;
+        if quality == AudioQuality::Aac || !self.shared.pipeline.lossless_available() {
+            return Kind::Stereo;
+        }
+        let (lossless, hires) = match track {
             Some(track) => {
                 let key = self.key_of(track);
                 let traits = &track.audio_traits;
-                let no_lossless =
-                    !traits.is_empty() && !traits.iter().any(|t| t == "lossless" || t == "hi-res-lossless");
-                no_lossless || self.no_lossless.contains(&key)
+                let listed = |name: &str| traits.is_empty() || traits.iter().any(|t| t == name);
+                let hires = listed("hi-res-lossless");
+                (
+                    (hires || listed("lossless")) && !self.no_lossless.contains(&key),
+                    hires && !self.no_hires.contains(&key),
+                )
             }
-            None => false,
+            None => (true, true),
         };
-        let lossless = self.st().lossless;
-        if lossless && !failed && self.shared.pipeline.lossless_available() { Kind::Lossless } else { Kind::Stereo }
+        match (lossless, hires && quality == AudioQuality::HiRes) {
+            (true, true) => Kind::HiRes,
+            (true, false) => Kind::Lossless,
+            (false, _) => Kind::Stereo,
+        }
+    }
+
+    /// Remember what a failed ALAC attempt says about the song. True when the song simply does
+    /// not have that rendition, which is nothing to tell the user: the next version down plays
+    /// and the format says which.
+    fn note_alac_failure(&mut self, job: &Job, error: &PlayerError) -> bool {
+        if job.kind == Kind::HiRes {
+            self.no_hires.insert(job.key.clone());
+        }
+        // without any ALAC, the attempt at the 48 kHz rendition would get the same answer
+        if job.kind == Kind::Lossless || error.is_no_lossless() {
+            self.no_lossless.insert(job.key.clone());
+        }
+        error.is_no_rendition()
     }
 
     fn stereo_fallback(&mut self) -> bool {
@@ -952,16 +980,16 @@ impl Worker {
         self.emit_state();
     }
 
-    fn cmd_set_lossless(&mut self, enabled: bool) {
+    fn cmd_set_quality(&mut self, quality: AudioQuality) {
         {
             let mut st = self.st();
-            if enabled == st.lossless {
+            if quality == st.quality {
                 return;
             }
-            st.lossless = enabled;
+            st.quality = quality;
         }
         self.shared.save_settings();
-        self.log(&format!("lossless {}", if enabled { "on" } else { "off" }));
+        self.log(&format!("audio quality {quality}"));
         self.emit_state();
         self.switch_current_if_needed();
     }
@@ -1571,11 +1599,14 @@ impl Worker {
             }
             return;
         }
-        if job.kind == Kind::Lossless && error.is_lossless() {
-            self.no_lossless.insert(job.key.clone());
-            let message = format!("{}: {error}; playing the AAC version", track.name);
-            self.emit_error(message, track.catalog_id.clone(), false);
-            self.start_current(job.start_frame(), Some(Kind::Stereo), 0);
+        if job.kind.is_alac() && error.is_lossless() {
+            let lacks_it = self.note_alac_failure(job, &error);
+            let kind = self.stereo_kind(Some(track));
+            if !lacks_it {
+                let message = format!("{}: {error}; playing the {} version", track.name, kind.version_name());
+                self.emit_error(message, track.catalog_id.clone(), false);
+            }
+            self.start_current(job.start_frame(), Some(kind), 0);
             return;
         }
         let message = format!("could not play {}: {error}", track.name);
@@ -1604,10 +1635,10 @@ impl Worker {
                 if error.is_no_atmos() && job.kind.rendered() {
                     self.no_atmos.insert(job.key.clone());
                     self.arm_prefetch(); // the stereo fallback's prefetch, or nothing
-                } else if job.kind == Kind::Lossless && error.is_lossless() {
-                    self.no_lossless.insert(job.key.clone());
-                    self.log(&format!("prefetch {name} failed: {error}; AAC instead"));
-                    self.arm_prefetch(); // the AAC decode
+                } else if job.kind.is_alac() && error.is_lossless() {
+                    self.note_alac_failure(job, &error);
+                    self.log(&format!("prefetch {name} failed: {error}; the next version down instead"));
+                    self.arm_prefetch(); // that version's decode
                 } else if error.is_not_entitled() {
                     self.log(&format!("prefetch {name} failed: {error}"));
                     self.prefetch_refused(job); // its current version is looked for now
@@ -1640,12 +1671,15 @@ impl Worker {
                     self.no_atmos.insert(job.key.clone());
                     let message = format!("{} has no Dolby Atmos version; staying with the stereo version", track.name);
                     self.emit_error(message, track.catalog_id.clone(), false);
-                } else if job.kind == Kind::Lossless && error.is_lossless() {
-                    self.no_lossless.insert(job.key.clone());
-                    let message = format!("{}: {error}; staying with the AAC version", track.name);
-                    self.emit_error(message, track.catalog_id.clone(), false);
+                } else if job.kind.is_alac() && error.is_lossless() {
+                    if !self.note_alac_failure(job, &error) {
+                        let kind = self.stereo_kind(Some(track));
+                        let message =
+                            format!("{}: {error}; staying with the {} version", track.name, kind.version_name());
+                        self.emit_error(message, track.catalog_id.clone(), false);
+                    }
                     self.emit_state();
-                    self.switch_current_if_needed(); // the mode may ask for the AAC decode now
+                    self.switch_current_if_needed(); // the settings may ask for the version below now
                     return;
                 } else {
                     let message = format!("could not switch {}: {error}", track.name);

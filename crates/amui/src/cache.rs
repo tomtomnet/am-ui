@@ -6,7 +6,9 @@
 //! lock, so one cache object can be shared by the player's worker threads and the UI thread.
 //!
 //! Keys are `<catalog id>.<variant>` ("1234567890.atmos", "1234567890.stereo",
-//! "1234567890.lossless", "1234567890.binaural"): plain file-name-safe strings, never paths.
+//! "1234567890.lossless", "1234567890.hires", "1234567890.binaural"): plain file-name-safe
+//! strings, never paths. "lossless" holds ALAC up to 48 kHz and "hires" ALAC above it, so that the
+//! two versions of a song never take each other's place.
 //!
 //! Beyond the stub contract (documented in research/engine-pipeline.md): `MediaCache::entries()`,
 //! `total_bytes()`, `remove()`; `PcmCache::path()`, `kind()`, `entries()`, `remove()`,
@@ -180,7 +182,7 @@ struct MediaState {
 }
 
 /// Decrypted .m4a files keyed by `<catalog id>.<variant>` (variant "atmos" = E-AC-3 JOC,
-/// "stereo" = AAC, "lossless" = ALAC).
+/// "stereo" = AAC, "lossless" = ALAC, "hires" = ALAC above 48 kHz).
 pub struct MediaCache {
     config: Arc<Config>,
     pub directory: PathBuf,
@@ -394,7 +396,8 @@ struct PcmState {
 /// Decoded audio per `<catalog id>.<kind>`: kind "atmos" = `<dir>/atmos-916.f32le` +
 /// `render-summary.json` (+ `render.log`); kind "stereo" = `<dir>/stereo.f32le` + `meta.json`
 /// (the AAC decode); kind "lossless" = `<dir>/lossless.f32le` + `meta.json` (the ALAC decode);
-/// kind "binaural" = `<dir>/binaural.f32le` + `meta.json`.
+/// kind "hires" = `<dir>/hires.f32le` + `meta.json` (the decode of ALAC above 48 kHz, resampled
+/// to the output's rate); kind "binaural" = `<dir>/binaural.f32le` + `meta.json`.
 ///
 /// In-use markers: a player writes `<dir>/.inuse-<pid>` while it plays, prefetches or renders an
 /// entry (`mark_inuse`/`unmark_inuse`). `claim()` refuses and `evict()` skips entries another
@@ -411,10 +414,11 @@ impl PcmCache {
     pub const INDEX: &'static str = "index.json";
     pub const INUSE_PREFIX: &'static str = ".inuse-";
     /// kind -> (PCM file, descriptor file, channels)
-    pub const KINDS: [(&'static str, (&'static str, &'static str, usize)); 4] = [
+    pub const KINDS: [(&'static str, (&'static str, &'static str, usize)); 5] = [
         ("atmos", (render::PCM_NAME, render::SUMMARY_NAME, config::CHANNELS)),
         ("stereo", ("stereo.f32le", "meta.json", 2)),
         ("lossless", ("lossless.f32le", "meta.json", 2)),
+        ("hires", ("hires.f32le", "meta.json", 2)),
         ("binaural", ("binaural.f32le", "meta.json", 2)),
     ];
 
@@ -439,7 +443,7 @@ impl PcmCache {
         match key.rsplit_once('.') {
             Some((song, kind)) if !song.is_empty() && Self::files_of(kind).is_some() => Ok((song, kind)),
             _ => Err(CacheError::Key(
-                "PCM cache key must end in one of ['atmos', 'binaural', 'lossless', 'stereo']".to_string(),
+                "PCM cache key must end in one of ['atmos', 'binaural', 'hires', 'lossless', 'stereo']".to_string(),
             )),
         }
     }
@@ -1371,10 +1375,13 @@ mod tests {
         let cache = scratch.pcm(1);
         assert_eq!(cache.kind("1.lossless").unwrap(), "lossless");
         assert_eq!(cache.pcm_path("1.lossless").unwrap(), scratch.root.join("pcm/1.lossless/lossless.f32le"));
+        // Hi-Res has a place of its own: it never takes the 48 kHz version's
+        assert_eq!(cache.kind("1.hires").unwrap(), "hires");
+        assert_eq!(cache.pcm_path("1.hires").unwrap(), scratch.root.join("pcm/1.hires/hires.f32le"));
         assert_eq!(cache.pcm_path("1.atmos").unwrap(), scratch.root.join("pcm/1.atmos/atmos-916.f32le"));
         assert_eq!(
             PcmCache::split_key("1.flac").unwrap_err().to_string(),
-            "PCM cache key must end in one of ['atmos', 'binaural', 'lossless', 'stereo']"
+            "PCM cache key must end in one of ['atmos', 'binaural', 'hires', 'lossless', 'stereo']"
         );
         assert_eq!(cache.path("a..b").unwrap_err().to_string(), "cache key must be a plain '<id>.<variant>' string");
         assert!(key_matches(&format!("1{}", "a".repeat(200))) && !key_matches(&format!("1{}", "a".repeat(201))));
@@ -1394,6 +1401,11 @@ mod tests {
         // a lossless decode is validated like a stereo one; a protected key must be a PCM key
         write_stereo_entry(&cache.path("2.lossless").unwrap(), 100, "lossless.f32le", None, true);
         assert!(cache.complete("2.lossless").unwrap().is_some());
+        assert_eq!(cache.complete("2.hires").unwrap(), None, "the 48 kHz decode is not the Hi-Res one");
+        write_stereo_entry(&cache.path("2.hires").unwrap(), 100, "hires.f32le", None, true);
+        assert!(cache.complete("2.hires").unwrap().is_some());
+        assert!(cache.complete("2.lossless").unwrap().is_some(), "and the two stand side by side");
+        cache.remove("2.hires").unwrap();
         assert!(matches!(cache.evict(["2.flac"]), Err(CacheError::Key(_))));
         cache.evict(["2.lossless"]).unwrap();
         assert_eq!(folders(&scratch.root.join("pcm")), ["2.lossless"]);

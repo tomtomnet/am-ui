@@ -22,7 +22,7 @@ use amui::player::{
     Kind, Output, OutputFactory, Player, PlayerEvent, PlayerOptions, Source, Tuning, format_detail_for,
 };
 use amui::render::PcmSource;
-use amui::types::{AcquireResult, AudioFormat, AudioMode, PlayerState, RepeatMode};
+use amui::types::{AcquireResult, AudioFormat, AudioMode, AudioQuality, PlayerState, RepeatMode};
 use serde_json::{Value, json};
 
 use support::{Call, FakePcmCache, FakePipeline, Harness, RATE, Setup, named, patient, scratch_config, track};
@@ -670,8 +670,16 @@ fn format_detail_helper() {
         Some(200.0),
     );
     assert_eq!(format_detail_for(Kind::Lossless, Some(&lossless), None), "Lossless · ALAC 24-bit/48 kHz");
+    // the output runs at 48 kHz: what comes at another rate is resampled, and the line says so
     let hires = acquired(json!({"audio_group": "audio-alac-stereo-96000-24", "codecs": "alac"}), Some(200.0));
-    assert_eq!(format_detail_for(Kind::Lossless, Some(&hires), None), "Hi-Res Lossless · ALAC 24-bit/96 kHz");
+    let resampled = "Hi-Res Lossless · ALAC 24-bit/96 kHz · resampled to 48 kHz";
+    assert_eq!(format_detail_for(Kind::HiRes, Some(&hires), None), resampled);
+    assert_eq!(format_detail_for(Kind::Lossless, Some(&hires), None), resampled);
+    let cd = acquired(json!({"audio_group": "audio-alac-stereo-44100-16", "codecs": "alac"}), Some(200.0));
+    assert_eq!(
+        format_detail_for(Kind::Lossless, Some(&cd), None),
+        "Lossless · ALAC 16-bit/44.1 kHz · resampled to 48 kHz"
+    );
     assert_eq!(format_detail_for(Kind::Lossless, Some(&acquired(json!({}), None)), None), "Lossless · ALAC");
 }
 
@@ -775,7 +783,23 @@ fn a_song_without_traits_is_asked_as_before() {
 }
 
 #[test]
-fn lossless_failure_falls_back_to_aac_with_a_notice_and_is_remembered() {
+fn a_failing_lossless_route_falls_back_to_aac_with_a_notice() {
+    let h = Harness::new();
+    h.pipeline.st().lossless_ok = true;
+    h.pipeline.st().route_failure = Some("the lossless service does not answer".to_string());
+    h.player.set_mode(AudioMode::Stereo);
+    h.player.play(vec![named("53", "Rare Song")], 0);
+    let snap = h.wait_state(PlayerState::Playing);
+    assert_eq!((snap.format, snap.format_detail.as_str()), (Some(AudioFormat::Stereo), "AAC 256 kbps"));
+    assert_eq!(h.pipeline.acquired()[..2], pairs(&[("53", "lossless"), ("53", "stereo")]));
+    let errors = h.errors();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].0, "Rare Song: the lossless service does not answer; playing the AAC version");
+    assert!(!errors[0].2);
+}
+
+#[test]
+fn a_song_without_a_lossless_version_plays_aac_quietly_and_is_remembered() {
     let h = Harness::new();
     h.pipeline.st().lossless_ok = true;
     h.pipeline.st().no_lossless.insert("51".to_string());
@@ -785,11 +809,7 @@ fn lossless_failure_falls_back_to_aac_with_a_notice_and_is_remembered() {
     assert_eq!(snap.format, Some(AudioFormat::Stereo));
     assert_eq!(snap.format_detail, "AAC 256 kbps");
     assert_eq!(h.pipeline.acquired()[..2], pairs(&[("51", "lossless"), ("51", "stereo")]));
-    let errors = h.errors();
-    assert_eq!(errors.len(), 1);
-    assert!(errors[0].0.contains("playing the AAC version"), "{}", errors[0].0);
-    assert!(errors[0].0.contains("no lossless"), "{}", errors[0].0);
-    assert!(!errors[0].2);
+    assert!(h.errors().is_empty(), "{:?}", h.errors());
     // the next song still gets the lossless attempt; the failed one is not retried on the way back
     h.wait_until("lossless prefetch of the next song", || h.pipeline.acquisitions("52", "lossless") > 0);
     h.player.set_mode(AudioMode::Atmos);
@@ -815,27 +835,27 @@ fn lossless_prefetch_failure_prefetches_aac_instead() {
 }
 
 #[test]
-fn set_lossless_switches_the_playing_song_and_persists() {
+fn set_quality_switches_the_playing_song_and_persists() {
     let h = Harness::new();
     h.pipeline.st().lossless_ok = true;
     h.player.set_mode(AudioMode::Stereo);
     h.player.play(vec![track("71")], 0);
     h.wait_snapshot("lossless playback", |snap| snap.format == Some(AudioFormat::Lossless));
     h.output.set_position(40 * RATE);
-    h.player.set_lossless(false);
+    h.player.set_quality(AudioQuality::Aac);
     let snap = h.wait_snapshot("switch to AAC", |snap| snap.format == Some(AudioFormat::Stereo));
     assert_eq!(snap.to_json()["lossless"], false);
     assert_eq!(h.output.set_sources().pop().unwrap().1, 40 * RATE);
     assert_eq!(h.output.active_name().as_deref(), Some("71.stereo:stereo.f32le"));
-    h.player.set_lossless(true);
+    h.player.set_quality(AudioQuality::Lossless);
     h.wait_snapshot("back to lossless", |snap| snap.format == Some(AudioFormat::Lossless));
     assert_eq!(h.pipeline.acquisitions("71", "lossless"), 1); // kept prepared: instant on the way back
-    h.player.set_lossless(false);
+    h.player.set_quality(AudioQuality::Aac);
     h.wait_snapshot("AAC again", |snap| snap.format == Some(AudioFormat::Stereo));
     h.player.shutdown();
     assert_eq!(h.pipeline.st().lossless_shutdowns, 1);
     let h2 = Harness::with(Setup { state_path: Some(h.state_path.clone()), ..Setup::default() });
-    assert!(!h2.player.lossless());
+    assert_eq!(h2.player.quality(), AudioQuality::Aac);
     assert_eq!(h2.snapshot().to_json()["lossless"], false);
 }
 
@@ -848,8 +868,8 @@ fn lossless_unavailable_mid_switch_stays_with_aac() {
     h.pipeline.st().lossless_ok = true;
     let refused = "the lossless service does not answer (ConnectionRefusedError)";
     h.pipeline.st().fail.insert("81".to_string(), LosslessError::Unavailable(refused.to_string()).into());
-    h.player.set_lossless(false);
-    h.player.set_lossless(true); // asks for the lossless kind now that the wrapper looks available
+    h.player.set_quality(AudioQuality::Aac);
+    h.player.set_quality(AudioQuality::Lossless); // asks for the lossless kind now that the wrapper looks available
     h.wait_until("switch failure notice", || {
         h.errors().iter().any(|(message, _, _)| message.contains("staying with the AAC version"))
     });

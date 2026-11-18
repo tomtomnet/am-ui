@@ -350,7 +350,7 @@ impl LoudnessStream for StreamMeter {
 /// Seam over acquire, render, downmix and loudness: the player only talks to these (tests pass
 /// their own). [`EnginePipeline`] is the engine's.
 pub trait Pipeline: Send + Sync {
-    /// The decrypted file of one variant ("atmos", "stereo", "lossless") of a song.
+    /// The decrypted file of one variant ("atmos", "stereo", "lossless", "hires") of a song.
     fn acquire(
         &self,
         catalog_id: &str,
@@ -363,6 +363,11 @@ pub trait Pipeline: Send + Sync {
     /// Cheap (filesystem) check: the lossless route is built and signed in, and no recent
     /// service failure.
     fn lossless_available(&self) -> bool;
+
+    /// While the route cannot be used: why, in a sentence for the user.
+    fn lossless_problem(&self) -> Option<String> {
+        None
+    }
 
     /// At shutdown: stop the lossless service when this engine started it.
     fn shutdown_lossless(&self);
@@ -460,6 +465,10 @@ impl Pipeline for EnginePipeline {
 
     fn lossless_available(&self) -> bool {
         self.lossless.available()
+    }
+
+    fn lossless_problem(&self) -> Option<String> {
+        self.lossless.problem()
     }
 
     fn shutdown_lossless(&self) {

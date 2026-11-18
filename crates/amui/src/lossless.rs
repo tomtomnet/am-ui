@@ -16,8 +16,12 @@
 //! master playlist -> the ALAC rendition (highest sample rate <= `config.lossless_max_rate`, else
 //! the lowest above it) -> `config.lossless_rip_helper` (download + decrypt + defragment + ALAC
 //! end-marker repair; the rendition URL goes in on stdin, never on the command line) -> ffprobe
-//! verification (alac, 2 channels) -> `MediaCache` key `<id>.lossless` with the usual meta plus
-//! sample_rate/bit_depth.
+//! verification (alac, 2 channels, the rendition's sample rate) -> `MediaCache` key
+//! `<id>.lossless` with the usual meta plus sample_rate/bit_depth.
+//!
+//! `acquire_hires()` is the same flow for the rendition above 48 kHz ([`select_hires`], up to
+//! [`HIRES_MAX_RATE`]) under a key of its own, `<id>.hires`: the two files of a song never take
+//! each other's place, and a `.hires` file is above 48 kHz because nothing else is stored there.
 //!
 //! Security: the wrapper's answers carry no account secret; playlist URLs may be signed and stay
 //! in local variables (the primitive redacts URLs from its errors, this module never logs them).
@@ -25,11 +29,12 @@
 //! directories.
 //!
 //! Failure model: [`LosslessError::Unavailable`] (service not built, not signed in, not
-//! reachable; decryption failed) and [`LosslessError::NoLossless`] (Apple offers no ALAC
-//! rendition for this song) reach callers as [`AcquireError::Lossless`]: the player falls back to
-//! the AAC variant with a truthful badge. Service failures arm a back-off (`available()` answers
-//! false for `BACKOFF_S`) so a dead service does not cost every following track a start-up
-//! attempt. Failures of the HTTP layer (rate limits, cancellation) pass through unchanged.
+//! reachable; decryption failed), [`LosslessError::NoLossless`] (Apple offers no ALAC rendition
+//! for this song) and [`LosslessError::NoHiRes`] (none above 48 kHz) reach callers as
+//! [`AcquireError::Lossless`]: the player falls back to the next version down with a truthful
+//! badge. Service failures arm a back-off (`available()` answers false for `BACKOFF_S`) so a dead
+//! service does not cost every following track a start-up attempt. Failures of the HTTP layer
+//! (rate limits, cancellation) pass through unchanged.
 //!
 //! Deliberate differences from `amui/lossless.py`:
 //!
@@ -88,10 +93,15 @@ pub const START_TIMEOUT_S: f64 = 90.0;
 pub const RIP_TIMEOUT_S: f64 = 900.0;
 pub const BACKOFF_S: f64 = 60.0;
 pub const NO_LOSSLESS: &str = "Apple offers no lossless (ALAC) rendition for this song";
+pub const NO_HIRES: &str = "Apple offers no Hi-Res Lossless rendition for this song";
+/// Above this sample rate a rendition is Hi-Res Lossless (Apple's tiers).
+pub const LOSSLESS_TOP_RATE: u32 = 48_000;
+/// The highest sample rate Hi-Res Lossless fetches: the highest Apple offers.
+pub const HIRES_MAX_RATE: u32 = 192_000;
 /// More than any answer of the service needs.
 const SERVICE_MAX_BYTES: u64 = 1024 * 1024;
 
-/// The lossless route cannot deliver this song; the AAC variant is the truthful fallback.
+/// The lossless route cannot deliver this song; the next version down is the truthful fallback.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum LosslessError {
     /// The service is not built, not signed in, not reachable, or decryption failed.
@@ -100,6 +110,35 @@ pub enum LosslessError {
     /// Apple advertises no ALAC rendition for this song and account.
     #[error("{0}")]
     NoLossless(String),
+    /// Apple advertises ALAC for this song, but none above 48 kHz.
+    #[error("{0}")]
+    NoHiRes(String),
+}
+
+impl LosslessError {
+    /// The song does not have the rendition: the route itself is fine.
+    pub fn is_no_rendition(&self) -> bool {
+        matches!(self, LosslessError::NoLossless(_) | LosslessError::NoHiRes(_))
+    }
+}
+
+/// One of the two ALAC versions of a song; each has its own entry in the media cache.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Tier {
+    /// Up to `config.lossless_max_rate`.
+    Lossless,
+    /// Above 48 kHz, up to [`HIRES_MAX_RATE`].
+    HiRes,
+}
+
+impl Tier {
+    /// The variant's name: the end of its cache key.
+    fn variant(self) -> &'static str {
+        match self {
+            Tier::Lossless => "lossless",
+            Tier::HiRes => "hires",
+        }
+    }
 }
 
 fn unavailable(message: impl Into<String>) -> LosslessError {
@@ -289,7 +328,7 @@ impl Lossless {
         Lossless { config, http, service, control, starting: Mutex::default(), state: Mutex::default() }
     }
 
-    /// Built and signed in: the UI shows the Lossless switch when this is true. The filesystem
+    /// Built and signed in: the UI offers the lossless qualities when this is true. The filesystem
     /// answer is kept for two seconds (snapshots ask often).
     pub fn configured(&self) -> bool {
         let mut state = lock(&self.state);
@@ -310,6 +349,21 @@ impl Lossless {
     /// `configured()` and not inside the back-off window that follows a service failure.
     pub fn available(&self) -> bool {
         self.configured() && self.backoff_left().is_none()
+    }
+
+    /// Why the route cannot be used now, in a sentence for the user; `None` when it can. Only
+    /// looks at files and the back-off.
+    pub fn problem(&self) -> Option<String> {
+        let problem = if !helper_built(&self.config) {
+            "The lossless route is not built on this computer (./setup.sh builds it)"
+        } else if !signed_in_files(&self.config) {
+            "Lossless needs Apple's own sign-in: use Sign In"
+        } else if self.backoff_left().is_some() {
+            "The lossless service failed a moment ago; it is tried again shortly"
+        } else {
+            return None;
+        };
+        Some(problem.to_string())
     }
 
     /// A service failure: arms the back-off.
@@ -541,13 +595,36 @@ impl Lossless {
         &self,
         catalog_id: &str,
         media_cache: &MediaCache,
+        progress: Option<ProgressFn<'_>>,
+        cancel: Option<&Event>,
+    ) -> Result<AcquireResult, AcquireError> {
+        self.acquire_tier(Tier::Lossless, catalog_id, media_cache, progress, cancel)
+    }
+
+    /// The rendition above 48 kHz: `acquire_lossless()` under the cache key `<id>.hires`.
+    /// [`LosslessError::NoHiRes`] when Apple offers ALAC for the song but none above 48 kHz.
+    pub fn acquire_hires(
+        &self,
+        catalog_id: &str,
+        media_cache: &MediaCache,
+        progress: Option<ProgressFn<'_>>,
+        cancel: Option<&Event>,
+    ) -> Result<AcquireResult, AcquireError> {
+        self.acquire_tier(Tier::HiRes, catalog_id, media_cache, progress, cancel)
+    }
+
+    fn acquire_tier(
+        &self,
+        tier: Tier,
+        catalog_id: &str,
+        media_cache: &MediaCache,
         mut progress: Option<ProgressFn<'_>>,
         cancel: Option<&Event>,
     ) -> Result<AcquireResult, AcquireError> {
         if !is_catalog_id(catalog_id) {
             return Err(AcquireError::other("catalog id must be numeric"));
         }
-        let key = format!("{catalog_id}.lossless");
+        let key = format!("{catalog_id}.{}", tier.variant());
         let mut report = |phase: &str, fraction: Option<f64>| {
             if let Some(callback) = progress.as_mut() {
                 callback(phase, fraction);
@@ -584,7 +661,10 @@ impl Lossless {
         cancelled()?;
         report("manifest", None);
         let (master, master_url) = self.device_master(catalog_id)?;
-        let selected = self.select_alac(&master, &master_url)?;
+        let selected = match tier {
+            Tier::Lossless => self.select_alac(&master, &master_url)?,
+            Tier::HiRes => select_hires(&master, &master_url)?,
+        };
         drop(master);
         cancelled()?;
 
@@ -606,7 +686,7 @@ impl Lossless {
         }
         let mut meta = Map::new();
         meta.insert("catalog_id".to_string(), json!(catalog_id));
-        meta.insert("variant".to_string(), json!("lossless"));
+        meta.insert("variant".to_string(), json!(tier.variant()));
         meta.insert("audio_group".to_string(), json!(selected.audio_group));
         meta.insert("codecs".to_string(), json!(selected.codecs));
         meta.insert("bandwidth".to_string(), json!(selected.bandwidth));
@@ -656,6 +736,16 @@ impl LosslessRoute for Lossless {
         cancel: Option<&Event>,
     ) -> Result<AcquireResult, AcquireError> {
         Lossless::acquire_lossless(self, catalog_id, media_cache, progress, cancel)
+    }
+
+    fn acquire_hires(
+        &self,
+        catalog_id: &str,
+        media_cache: &MediaCache,
+        progress: Option<ProgressFn<'_>>,
+        cancel: Option<&Event>,
+    ) -> Result<AcquireResult, AcquireError> {
+        Lossless::acquire_hires(self, catalog_id, media_cache, progress, cancel)
     }
 }
 
@@ -749,6 +839,22 @@ pub fn select_alac(master: &str, master_url: &str, max_rate: u32) -> Result<Alac
     chosen.cloned().ok_or_else(|| LosslessError::NoLossless(NO_LOSSLESS.to_string()))
 }
 
+/// The Hi-Res Lossless rendition to fetch: the highest sample rate above 48 kHz, up to
+/// [`HIRES_MAX_RATE`]. Ties go to the higher bit depth, then the higher bandwidth.
+/// [`LosslessError::NoHiRes`] when the song's ALAC goes no higher than 48 kHz,
+/// [`LosslessError::NoLossless`] when it has none.
+pub fn select_hires(master: &str, master_url: &str) -> Result<AlacVariant, LosslessError> {
+    let variants = alac_variants(master, master_url);
+    let bandwidth = |variant: &AlacVariant| variant.bandwidth.trim().parse::<i64>().unwrap_or(0);
+    let hires =
+        variants.iter().filter(|variant| (LOSSLESS_TOP_RATE + 1..=HIRES_MAX_RATE).contains(&variant.sample_rate));
+    match first_max(hires, |variant| (variant.sample_rate, variant.bit_depth, bandwidth(variant))) {
+        Some(chosen) => Ok(chosen.clone()),
+        None if variants.is_empty() => Err(LosslessError::NoLossless(NO_LOSSLESS.to_string())),
+        None => Err(LosslessError::NoHiRes(NO_HIRES.to_string())),
+    }
+}
+
 /// A number as Python's `{:g}` prints it: six significant digits, no trailing zeros.
 fn general(value: f64) -> String {
     let scientific = format!("{value:.5e}");
@@ -769,7 +875,7 @@ fn general(value: f64) -> String {
 /// "Lossless · ALAC 24-bit/48 kHz", "Hi-Res Lossless · ALAC 24-bit/96 kHz" (Apple's tier names).
 pub fn quality_label(sample_rate: Option<u32>, bit_depth: Option<u32>) -> String {
     let sample_rate = sample_rate.filter(|rate| *rate != 0);
-    let tier = if sample_rate.is_some_and(|rate| rate > 48000) { "Hi-Res Lossless" } else { "Lossless" };
+    let tier = if sample_rate.is_some_and(|rate| rate > LOSSLESS_TOP_RATE) { "Hi-Res Lossless" } else { "Lossless" };
     let mut parts = Vec::new();
     if let Some(depth) = bit_depth.filter(|depth| *depth != 0) {
         parts.push(format!("{depth}-bit"));
@@ -871,6 +977,35 @@ mod tests {
         assert_eq!(fixture.lossless.select_alac(&device_master(), MASTER_URL).unwrap().sample_rate, 96000);
         let fixture = Fixture::new();
         assert_eq!(fixture.lossless.select_alac(&device_master(), MASTER_URL).unwrap().sample_rate, 48000);
+    }
+
+    #[test]
+    fn hires_takes_the_highest_rendition_above_48_khz() {
+        let chosen = select_hires(&device_master(), MASTER_URL).unwrap();
+        assert_eq!((chosen.sample_rate, chosen.bit_depth), (192000, 24));
+        assert_eq!(chosen.audio_group, "audio-alac-stereo-192000-24");
+        // ... and only those: 96 kHz when that is the top, nothing beyond what Apple's tier has
+        let up_to_96 = master(&[
+            ("audio-alac-stereo-48000-24", "alac", 1995449),
+            ("audio-alac-stereo-96000-24", "alac", 3800000),
+            ("audio-alac-stereo-384000-24", "alac", 14000000),
+        ]);
+        assert_eq!(select_hires(&up_to_96, MASTER_URL).unwrap().sample_rate, 96000);
+        // the same master as the Lossless quality reads it: the two never pick the same file
+        assert_eq!(select_alac(&up_to_96, MASTER_URL, 48000).unwrap().sample_rate, 48000);
+    }
+
+    #[test]
+    fn a_song_without_a_rendition_above_48_khz_has_no_hires() {
+        let plain =
+            master(&[("audio-alac-stereo-44100-16", "alac", 900000), ("audio-alac-stereo-48000-24", "alac", 1995449)]);
+        let error = select_hires(&plain, MASTER_URL).unwrap_err();
+        assert_eq!(error, LosslessError::NoHiRes(NO_HIRES.to_string()));
+        assert!(error.is_no_rendition());
+        // without any ALAC the answer is the wider one: nothing lossless is worth trying either
+        let lossy = master(&[("audio-stereo-256", "mp4a.40.2", 270717)]);
+        assert_eq!(select_hires(&lossy, MASTER_URL).unwrap_err(), LosslessError::NoLossless(NO_LOSSLESS.to_string()));
+        assert!(!LosslessError::Unavailable("gone".to_string()).is_no_rendition());
     }
 
     #[test]
@@ -1176,9 +1311,14 @@ mod tests {
     /// The fixture signed in, with a tone file and the stand-in helper in `mode`; `None` when
     /// this machine has no ffmpeg that can make the tone.
     fn flow(mode: &str, codec: &str) -> Option<Fixture> {
+        flow_at(mode, codec, 48000)
+    }
+
+    /// `flow()` with a tone file of another sample rate.
+    fn flow_at(mode: &str, codec: &str, sample_rate: u32) -> Option<Fixture> {
         let fixture = Fixture::new();
         let source = fixture.root.join(format!("tone-{codec}.m4a"));
-        if !tone(&source, codec, 48000) {
+        if !tone(&source, codec, sample_rate) {
             eprintln!("skipped: ffmpeg/ffprobe needed");
             return None;
         }
@@ -1238,6 +1378,83 @@ mod tests {
         );
         assert_eq!(fixture.service_calls(), ["/status", "/m3u8?adamId=123"]);
         assert_eq!(fixture.config.lossless_url, "http://127.0.0.1:9");
+    }
+
+    #[test]
+    fn hires_is_fetched_and_kept_apart_from_the_48_khz_file() {
+        let Some(fixture) = flow_at("copy", "alac", 192000) else { return };
+        let acquirer = Acquirer::new(fixture.config.clone(), fixture.http.clone(), fixture.lossless.clone());
+        let result = acquirer.acquire("123", &fixture.cache, "hires", None, None).unwrap();
+        assert!(!result.from_cache);
+        assert!(result.path.ends_with("/123.hires.m4a"), "{}", result.path);
+        assert_eq!(result.variant["audio_group"], "audio-alac-stereo-192000-24");
+        assert_eq!((&result.variant["sample_rate"], &result.variant["bit_depth"]), (&json!(192000), &json!(24)));
+        // the helper was given the rendition above 48 kHz
+        let record = fs::read_to_string(fixture.root.join("rip-record")).unwrap();
+        assert!(record.contains("/audio-alac-stereo-192000-24/P1000_default.m3u8"), "{record}");
+        let meta = fixture.cache.meta("123.hires").unwrap().unwrap();
+        assert_eq!((&meta["variant"], &meta["sample_rate"]), (&json!("hires"), &json!(192000)));
+        // nothing was stored as the 48 kHz version
+        assert_eq!(fixture.cache.get("123.lossless").unwrap(), None);
+        let again = acquirer.acquire("123", &fixture.cache, "hires", None, None).unwrap();
+        assert!(again.from_cache);
+        assert_eq!(again.variant, result.variant);
+
+        // the 48 kHz version is a file of its own next to it
+        let plain = fixture.root.join("tone-48000.m4a");
+        assert!(tone(&plain, "alac", 48000));
+        let record_path = fixture.root.join("rip-record");
+        write_program(&fixture.config.lossless_rip_helper, &rip_helper("copy", &plain, &record_path));
+        let lossless = acquirer.acquire("123", &fixture.cache, "lossless", None, None).unwrap();
+        assert!(lossless.path.ends_with("/123.lossless.m4a"), "{}", lossless.path);
+        assert_eq!(lossless.variant["sample_rate"], 48000);
+        assert_ne!(lossless.path, result.path);
+        assert!(Path::new(&result.path).is_file() && Path::new(&lossless.path).is_file());
+    }
+
+    #[test]
+    fn a_decode_of_hires_says_it_was_resampled() {
+        let Some(fixture) = flow_at("copy", "alac", 96000) else { return };
+        let out = fixture.root.join("pcm/hires.f32le");
+        let frames = decode_stereo(&fixture.root.join("tone-alac.m4a"), &out).unwrap();
+        assert!((frames as f64 / f64::from(config::SAMPLE_RATE) - 0.5).abs() < 0.05, "{frames} frames at 48 kHz");
+        let meta = util::read_json_object(&out.with_file_name("meta.json")).unwrap();
+        assert_eq!((&meta["source_sample_rate"], &meta["sample_rate"]), (&json!(96000), &json!(48000)));
+        assert_eq!(meta["resampled"], true);
+    }
+
+    #[test]
+    fn a_file_that_is_not_the_rendition_is_not_kept_as_hires() {
+        // the service hands out 48 kHz audio under the name of the 192 kHz rendition
+        let Some(fixture) = flow_at("copy", "alac", 48000) else { return };
+        let message = unavailable_text(fixture.lossless.acquire_hires("129", &fixture.cache, None, None));
+        assert!(message.contains("sample rate"), "{message}");
+        assert_eq!(fixture.cache.get("129.hires").unwrap(), None);
+    }
+
+    #[test]
+    fn a_song_without_hires_is_told_apart_from_a_failing_route() {
+        let Some(fixture) = flow_at("copy", "alac", 96000) else { return };
+        fixture.script().master = Ok(master(&[("audio-alac-stereo-48000-24", "alac", 1995449)]).into_bytes());
+        let error = fixture.lossless.acquire_hires("130", &fixture.cache, None, None).unwrap_err();
+        assert_eq!(error, AcquireError::Lossless(LosslessError::NoHiRes(NO_HIRES.to_string())));
+        assert!(fixture.lossless.available(), "a per-song answer, not a service failure");
+        assert_eq!(fixture.cache.get("130.hires").unwrap(), None);
+    }
+
+    #[test]
+    fn the_route_says_why_it_cannot_be_used() {
+        let fixture = Fixture::new();
+        let problem = || fixture.lossless.problem().unwrap_or_default();
+        assert!(problem().contains("sign-in"), "{}", problem());
+        fixture.sign_in();
+        fixture.lossless.clear_backoff();
+        assert_eq!(fixture.lossless.problem(), None);
+        fixture.lossless.fail("boom");
+        assert!(problem().contains("failed a moment ago"), "{}", problem());
+        fixture.lossless.clear_backoff();
+        fs::remove_file(&fixture.config.lossless_rip_helper).unwrap();
+        assert!(problem().contains("not built"), "{}", problem());
     }
 
     #[test]

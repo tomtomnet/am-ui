@@ -598,6 +598,12 @@ pub struct PipelineState {
     pub lossless_ok: bool,
     /// Songs whose lossless acquisition fails.
     pub no_lossless: HashSet<String>,
+    /// Songs with ALAC, but none above 48 kHz.
+    pub no_hires: HashSet<String>,
+    /// The lossless route is out of order: every ALAC acquisition fails with this.
+    pub route_failure: Option<String>,
+    /// Why the route cannot be used, as the pipeline says it.
+    pub lossless_problem: Option<String>,
     pub lossless_shutdowns: u32,
     pub preamp: Option<f64>,
     pub preamps_set: Vec<f64>,
@@ -643,6 +649,9 @@ impl FakePipeline {
                 growing: HashMap::new(),
                 lossless_ok: false,
                 no_lossless: HashSet::new(),
+                no_hires: HashSet::new(),
+                route_failure: None,
+                lossless_problem: None,
                 lossless_shutdowns: 0,
                 preamp: Some(-11.0),
                 preamps_set: Vec::new(),
@@ -719,9 +728,17 @@ impl Pipeline for FakePipeline {
                 let message = "Apple advertises no Dolby Atmos (ec-3) variant for this song";
                 return Err(AcquireError::NoAtmos(message.to_string()));
             }
-            if variant == "lossless" && st.no_lossless.contains(catalog_id) {
+            let alac = matches!(variant, "lossless" | "hires");
+            if let Some(failure) = st.route_failure.as_ref().filter(|_| alac) {
+                return Err(LosslessError::Unavailable(failure.clone()).into());
+            }
+            if alac && st.no_lossless.contains(catalog_id) {
                 let message = "Apple offers no lossless (ALAC) rendition for this song";
                 return Err(LosslessError::NoLossless(message.to_string()).into());
+            }
+            if variant == "hires" && st.no_hires.contains(catalog_id) {
+                let message = "Apple offers no Hi-Res Lossless rendition for this song";
+                return Err(LosslessError::NoHiRes(message.to_string()).into());
             }
             if let Some(error) = st.fail.get(catalog_id) {
                 return Err(error.clone());
@@ -734,6 +751,10 @@ impl Pipeline for FakePipeline {
             "lossless" => json!({
                 "audio_group": "audio-alac-stereo-48000-24", "codecs": "alac", "bandwidth": "1846745",
                 "sample_rate": 48000, "bit_depth": 24,
+            }),
+            "hires" => json!({
+                "audio_group": "audio-alac-stereo-96000-24", "codecs": "alac", "bandwidth": "3800000",
+                "sample_rate": 96000, "bit_depth": 24,
             }),
             _ => json!({"audio_group": "audio-stereo-256", "codecs": "mp4a.40.2", "bandwidth": "256000"}),
         };
@@ -749,6 +770,10 @@ impl Pipeline for FakePipeline {
 
     fn lossless_available(&self) -> bool {
         self.st().lossless_ok
+    }
+
+    fn lossless_problem(&self) -> Option<String> {
+        self.st().lossless_problem.clone()
     }
 
     fn shutdown_lossless(&self) {

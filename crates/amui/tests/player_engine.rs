@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use amui::cache::{MediaCache, PcmCache};
 use amui::loudness;
 use amui::player::{Output, Pipeline, Player, PlayerEvent, PlayerOptions};
-use amui::types::{AudioFormat, AudioMode, PlaybackSnapshot, PlayerState, RepeatMode, Track};
+use amui::types::{AudioFormat, AudioMode, AudioQuality, PlaybackSnapshot, PlayerState, RepeatMode, Track};
 use amui::util::Event;
 use serde_json::json;
 
@@ -183,8 +183,8 @@ fn settings_are_kept_in_the_file_the_python_engine_reads() {
     let expected = [
         "{",
         " \"downmix_profile\": \"peqdb\",",
-        " \"lossless\": true,",
         " \"mode\": \"atmos\",",
+        " \"quality\": \"lossless\",",
         " \"repeat\": \"off\",",
         " \"shuffle\": false,",
         " \"sound_check\": true,",
@@ -205,11 +205,57 @@ fn settings_are_kept_in_the_file_the_python_engine_reads() {
     let snapshot = again.player.snapshot();
     assert_eq!((snapshot.mode, snapshot.volume, snapshot.shuffle), (AudioMode::Stereo, 1.0, true));
     assert_eq!((snapshot.sound_check, snapshot.lossless), (false, false));
+    assert_eq!(snapshot.quality, AudioQuality::Aac, "the older switch, off");
     assert_eq!(snapshot.repeat, RepeatMode::Off, "an unknown repeat mode keeps the default");
     assert!(again.player.stereo_fallback(), "a value of another type keeps the default");
 
     // the profile the sink really runs is reported, whatever was saved
     again.wait("the live profile", |snapshot| snapshot.downmix_profile.as_deref() == Some("peqdb"));
+}
+
+#[test]
+fn the_quality_is_read_from_the_file_and_from_the_switch_it_replaced() {
+    let engine = Arc::new(Engine::new());
+    fs::create_dir_all(&engine.config.state_dir).unwrap();
+    let path = engine.config.state_dir.join("player.json");
+    let cases = [
+        (json!({}), AudioQuality::Lossless),
+        (json!({"lossless": true}), AudioQuality::Lossless),
+        (json!({"lossless": false}), AudioQuality::Aac),
+        (json!({"lossless": "no"}), AudioQuality::Lossless),
+        (json!({"quality": "hires"}), AudioQuality::HiRes),
+        (json!({"quality": "aac", "lossless": true}), AudioQuality::Aac),
+        (json!({"quality": "hires", "lossless": false}), AudioQuality::HiRes),
+        (json!({"quality": "best", "lossless": false}), AudioQuality::Aac),
+        (json!({"quality": 3}), AudioQuality::Lossless),
+    ];
+    for (saved, expected) in cases {
+        fs::write(&path, saved.to_string()).unwrap();
+        let rig = Rig::on(engine.clone());
+        assert_eq!(rig.player.quality(), expected, "{saved}");
+        let snapshot = rig.player.snapshot();
+        assert_eq!((snapshot.quality, snapshot.lossless), (expected, expected != AudioQuality::Aac), "{saved}");
+        rig.player.shutdown();
+    }
+
+    // what is written is the one setting, and it survives the next start
+    fs::write(&path, json!({"lossless": false}).to_string()).unwrap();
+    let rig = Rig::on(engine.clone());
+    rig.player.set_quality(AudioQuality::HiRes);
+    rig.wait("the new quality", |snapshot| snapshot.quality == AudioQuality::HiRes);
+    rig.player.shutdown();
+    let written: serde_json::Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(written["quality"], "hires");
+    assert!(written.get("lossless").is_none(), "{written}");
+    assert_eq!(Rig::on(engine).player.quality(), AudioQuality::HiRes);
+}
+
+#[test]
+fn the_engine_says_why_lossless_cannot_be_chosen() {
+    let rig = Rig::new();
+    let snapshot = rig.wait("the first state", |snapshot| snapshot.preamp.is_some());
+    assert!(!snapshot.lossless_available);
+    assert!(snapshot.lossless_problem.as_deref().is_some_and(|problem| problem.contains("not built")), "{snapshot:?}");
 }
 
 #[test]

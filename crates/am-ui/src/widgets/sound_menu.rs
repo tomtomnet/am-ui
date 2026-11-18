@@ -1,11 +1,25 @@
-//! The sound settings of the player bar: Dolby Atmos, lossless, Sound Check, the downmix
+//! The sound settings of the player bar: Dolby Atmos, the audio quality, Sound Check, the downmix
 //! profile (a choice of three, in sight) and the output's preamp.
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use adw::prelude::*;
-use amui::types::AudioMode;
+use amui::types::{AudioMode, AudioQuality};
 use gtk::glib;
 
 use crate::app::ctx;
+use crate::playback::PlayerView;
+
+/// The choices of the quality: what it is called, and what it is.
+const QUALITIES: [(AudioQuality, &str, &str); 3] = [
+    (AudioQuality::Aac, "High Quality", "AAC 256 kbps"),
+    (AudioQuality::Lossless, "Lossless", "ALAC up to 24-bit/48 kHz"),
+    (AudioQuality::HiRes, "Hi-Res Lossless", "ALAC up to 24-bit/192 kHz"),
+];
+
+/// For a player that names no reason of its own.
+const NO_LOSSLESS: &str = "Lossless is not available";
 
 fn switch_row(title: &str, subtitle: &str) -> adw::SwitchRow {
     let row = adw::SwitchRow::new();
@@ -43,9 +57,116 @@ fn profile_rows(profiles: &[crate::playback::Profile]) -> Vec<(adw::ActionRow, g
     rows
 }
 
+/// The place of a quality in the list.
+fn quality_position(quality: AudioQuality) -> u32 {
+    QUALITIES.iter().position(|(known, _, _)| *known == quality).unwrap_or(0) as u32
+}
+
+/// The quality the list shows: what is chosen, as far as it can be had. The choice itself is kept
+/// for when the lossless route is back.
+fn shown_quality(view: &PlayerView) -> AudioQuality {
+    if view.lossless_available { view.quality } else { AudioQuality::Aac }
+}
+
+/// The line that goes with the quality: what plays, and why lossless cannot be chosen when it
+/// cannot. Empty when there is nothing to say.
+pub fn quality_note(view: &PlayerView) -> String {
+    let mut lines = Vec::new();
+    if view.format.is_some() && !view.format_detail.is_empty() {
+        lines.push(format!("Playing: {}", view.format_detail));
+    }
+    if !view.lossless_available {
+        lines.push(view.lossless_problem.clone().unwrap_or_else(|| NO_LOSSLESS.to_string()));
+    }
+    lines.join("\n")
+}
+
+/// The rows of the open list: name, what it is, a check mark on the current one. The choices that
+/// need the lossless route cannot be taken without it.
+fn quality_items(lossless: bool) -> gtk::SignalListItemFactory {
+    let factory = gtk::SignalListItemFactory::new();
+    factory.connect_setup(|_, item| {
+        let Some(item) = item.downcast_ref::<gtk::ListItem>() else { return };
+        let name = gtk::Label::new(None);
+        name.set_xalign(0.0);
+        let what = gtk::Label::new(None);
+        what.set_xalign(0.0);
+        what.add_css_class("caption");
+        what.add_css_class("dim-label");
+        let text = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        text.set_hexpand(true);
+        text.append(&name);
+        text.append(&what);
+        let check = gtk::Image::from_icon_name("am-object-select-symbolic");
+        item.bind_property("selected", &check, "visible").sync_create().build();
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+        row.append(&text);
+        row.append(&check);
+        item.set_child(Some(&row));
+    });
+    factory.connect_bind(move |_, item| {
+        let Some(item) = item.downcast_ref::<gtk::ListItem>() else { return };
+        let Some((quality, name, what)) = QUALITIES.get(item.position() as usize) else { return };
+        let Some(row) = item.child() else { return };
+        let labels = row.first_child().and_then(|text| {
+            let first = text.first_child()?;
+            let second = first.next_sibling()?;
+            Some((first.downcast::<gtk::Label>().ok()?, second.downcast::<gtk::Label>().ok()?))
+        });
+        if let Some((first, second)) = labels {
+            first.set_text(name);
+            second.set_text(what);
+        }
+        let open = lossless || *quality == AudioQuality::Aac;
+        item.set_activatable(open);
+        item.set_selectable(open);
+        item.set_focusable(open);
+        row.set_sensitive(open);
+    });
+    factory
+}
+
+/// "Audio Quality": a drop-down of the qualities that follows the player's setting and sets it.
+/// `note` gets the row and what goes with it (`quality_note`) now and whenever the player changes.
+pub fn quality_row(note: impl Fn(&adw::ComboRow, &str) + 'static) -> adw::ComboRow {
+    let row = adw::ComboRow::new();
+    row.set_title("Audio Quality");
+    // what goes with it may come from the engine: text, not markup
+    row.set_use_markup(false);
+    let names: Vec<&str> = QUALITIES.iter().map(|(_, name, _)| *name).collect();
+    row.set_model(Some(&gtk::StringList::new(&names)));
+    let view = ctx().player.view();
+    row.set_list_factory(Some(&quality_items(view.lossless_available)));
+    row.set_selected(quality_position(shown_quality(&view)));
+    note(&row, &quality_note(&view));
+
+    // while the row is set from the player, nothing goes back to it
+    let updating = Rc::new(Cell::new(false));
+    let lossless = Cell::new(view.lossless_available);
+    let setting = updating.clone();
+    ctx().player.changed.connect(&row, move |row, _| {
+        let view = crate::app::ctx().player.view();
+        setting.set(true);
+        row.set_selected(quality_position(shown_quality(&view)));
+        setting.set(false);
+        if lossless.replace(view.lossless_available) != view.lossless_available {
+            row.set_list_factory(Some(&quality_items(view.lossless_available)));
+        }
+        note(row, &quality_note(&view));
+    });
+    row.connect_selected_notify(move |row| {
+        if let Some((quality, _, _)) = QUALITIES.get(row.selected() as usize)
+            && !updating.get()
+        {
+            crate::app::ctx().player.playback.set_quality(*quality);
+        }
+    });
+    row
+}
+
 pub fn button() -> gtk::MenuButton {
     let atmos = switch_row("Dolby Atmos", "Play the Atmos version when a song has one");
-    let lossless = switch_row("Lossless", "Play the lossless version instead of AAC");
+    let quality = quality_row(|row, note| row.set_subtitle(note));
     let sound_check = switch_row("Sound Check", "Play every song at a similar loudness");
     let fallback = switch_row("Stereo When There Is No Atmos", "Otherwise such songs are skipped");
     let autoplay = switch_row("Autoplay", "Keep playing similar music when the queue ends");
@@ -65,7 +186,7 @@ pub fn button() -> gtk::MenuButton {
 
     let playback = adw::PreferencesGroup::new();
     playback.add(&atmos);
-    playback.add(&lossless);
+    playback.add(&quality);
     playback.add(&sound_check);
     playback.add(&autoplay);
     let downmix = adw::PreferencesGroup::new();
@@ -110,28 +231,14 @@ pub fn button() -> gtk::MenuButton {
     // are not sent back to it
     let updating = std::rc::Rc::new(std::cell::Cell::new(false));
     let update = {
-        let (atmos, lossless, sound_check, fallback, autoplay, preamp, updating) = (
-            atmos.clone(),
-            lossless.clone(),
-            sound_check.clone(),
-            fallback.clone(),
-            autoplay.clone(),
-            preamp.clone(),
-            updating.clone(),
-        );
+        let (atmos, sound_check, fallback, autoplay, preamp, updating) =
+            (atmos.clone(), sound_check.clone(), fallback.clone(), autoplay.clone(), preamp.clone(), updating.clone());
         let checks: Vec<gtk::CheckButton> = profile_rows.iter().map(|(_, check)| check.clone()).collect();
         let profiles = profiles.clone();
         move || {
             let view = crate::app::ctx().player.view();
             updating.set(true);
             atmos.set_active(view.mode == AudioMode::Atmos);
-            lossless.set_active(view.lossless);
-            lossless.set_sensitive(view.lossless_available);
-            lossless.set_subtitle(if view.lossless_available {
-                "Play the lossless version instead of AAC"
-            } else {
-                "Needs the lossless route and Apple's own sign-in"
-            });
             sound_check.set_active(view.sound_check);
             fallback.set_active(view.stereo_fallback);
             autoplay.set_active(view.autoplay);
@@ -160,7 +267,6 @@ pub fn button() -> gtk::MenuButton {
         });
     };
     send(&atmos, &updating, |playback, on| playback.set_mode(if on { AudioMode::Atmos } else { AudioMode::Stereo }));
-    send(&lossless, &updating, |playback, on| playback.set_lossless(on));
     send(&sound_check, &updating, |playback, on| playback.set_sound_check(on));
     send(&fallback, &updating, |playback, on| playback.set_stereo_fallback(on));
     send(&autoplay, &updating, |playback, on| playback.set_autoplay(on));
@@ -192,4 +298,45 @@ pub fn button() -> gtk::MenuButton {
         });
     }
     button
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use amui::types::AudioFormat;
+
+    #[test]
+    fn the_list_offers_the_three_qualities_in_their_order() {
+        let names: Vec<&str> = QUALITIES.iter().map(|(_, name, _)| *name).collect();
+        assert_eq!(names, ["High Quality", "Lossless", "Hi-Res Lossless"]);
+        for (position, (quality, _, _)) in QUALITIES.iter().enumerate() {
+            assert_eq!(quality_position(*quality), position as u32);
+        }
+    }
+
+    #[test]
+    fn without_the_route_the_list_shows_what_can_be_had() {
+        let mut view = PlayerView { quality: AudioQuality::HiRes, lossless_available: true, ..PlayerView::default() };
+        assert_eq!(shown_quality(&view), AudioQuality::HiRes);
+        view.lossless_available = false;
+        assert_eq!(shown_quality(&view), AudioQuality::Aac);
+    }
+
+    #[test]
+    fn the_note_says_what_plays_and_why_lossless_cannot_be_chosen() {
+        let mut view = PlayerView { lossless_available: true, ..PlayerView::default() };
+        assert_eq!(quality_note(&view), "", "nothing plays and nothing is wrong");
+        view.format = Some(AudioFormat::Lossless);
+        view.format_detail = "Hi-Res Lossless · ALAC 24-bit/96 kHz · resampled to 48 kHz".into();
+        assert_eq!(quality_note(&view), "Playing: Hi-Res Lossless · ALAC 24-bit/96 kHz · resampled to 48 kHz");
+        view.lossless_available = false;
+        view.lossless_problem = Some("Lossless needs Apple's own sign-in: use Sign In".into());
+        view.format = Some(AudioFormat::Stereo);
+        view.format_detail = "AAC 256 kbps".into();
+        assert_eq!(quality_note(&view), "Playing: AAC 256 kbps\nLossless needs Apple's own sign-in: use Sign In");
+        view.format = None;
+        view.format_detail.clear();
+        view.lossless_problem = None;
+        assert_eq!(quality_note(&view), NO_LOSSLESS);
+    }
 }

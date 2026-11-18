@@ -3,7 +3,7 @@
 //!
 //! Commands return at once; what happened arrives later as events on the user interface thread.
 
-use amui::types::{AudioFormat, AudioMode, PlayerState, RepeatMode, Station, Track};
+use amui::types::{AudioFormat, AudioMode, AudioQuality, PlayerState, RepeatMode, Station, Track};
 
 /// A stereo downmix profile of the output.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,7 +32,8 @@ pub struct PlayerView {
     pub mode: AudioMode,
     /// What is actually playing.
     pub format: Option<AudioFormat>,
-    /// "Dolby Atmos · E-AC-3 JOC 768 kbps", "Lossless · ALAC 24-bit/48 kHz", "AAC 256 kbps".
+    /// "Dolby Atmos · E-AC-3 JOC 768 kbps", "Lossless · ALAC 24-bit/48 kHz", "AAC 256 kbps",
+    /// "Hi-Res Lossless · ALAC 24-bit/96 kHz · resampled to 48 kHz".
     pub format_detail: String,
     pub downmix_profile: Option<String>,
     /// A change of mode or profile is being prepared in the middle of a song.
@@ -40,9 +41,13 @@ pub struct PlayerView {
     /// The shared output's preamp in dB.
     pub preamp: Option<f64>,
     pub sound_check: bool,
-    pub lossless: bool,
+    /// Which version plays when 2-channel audio plays (the setting; `format_detail` is what
+    /// does).
+    pub quality: AudioQuality,
     /// Lossless can be chosen on this machine.
     pub lossless_available: bool,
+    /// Why it cannot, when it cannot.
+    pub lossless_problem: Option<String>,
     pub stereo_fallback: bool,
     /// The output ran out of audio and waits for more.
     pub buffering: bool,
@@ -74,8 +79,9 @@ impl Default for PlayerView {
             switching: false,
             preamp: None,
             sound_check: true,
-            lossless: false,
+            quality: AudioQuality::Aac,
             lossless_available: false,
+            lossless_problem: None,
             stereo_fallback: true,
             buffering: false,
             autoplay: true,
@@ -128,7 +134,7 @@ pub trait Playback {
     fn set_autoplay(&self, autoplay: bool);
 
     fn set_mode(&self, mode: AudioMode);
-    fn set_lossless(&self, lossless: bool);
+    fn set_quality(&self, quality: AudioQuality);
     fn set_sound_check(&self, sound_check: bool);
     fn set_stereo_fallback(&self, stereo_fallback: bool);
     fn downmix_profiles(&self) -> Vec<Profile>;

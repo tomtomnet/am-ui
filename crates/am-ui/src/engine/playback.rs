@@ -16,7 +16,7 @@ use amui::output::PlaybackLog;
 use amui::player::{
     EnginePipeline, Player, PlayerError, PlayerEvent as EngineEvent, PlayerOptions, RESUME_FILE, Radio,
 };
-use amui::types::{AudioMode, PlaybackSnapshot, PlayerState, RepeatMode, Station, Track};
+use amui::types::{AudioMode, AudioQuality, PlaybackSnapshot, PlayerState, RepeatMode, Station, Track};
 use amui::web::Web;
 use gtk::glib;
 
@@ -74,8 +74,9 @@ pub fn view_of(snapshot: &PlaybackSnapshot, stereo_fallback: bool) -> PlayerView
         switching: snapshot.switching,
         preamp: snapshot.preamp,
         sound_check: snapshot.sound_check,
-        lossless: snapshot.lossless,
+        quality: snapshot.quality,
         lossless_available: snapshot.lossless_available,
+        lossless_problem: snapshot.lossless_problem.clone(),
         stereo_fallback,
         buffering: snapshot.buffering,
         autoplay: snapshot.autoplay,
@@ -290,8 +291,8 @@ impl Playback for EnginePlayback {
         self.player().set_mode(mode);
     }
 
-    fn set_lossless(&self, lossless: bool) {
-        self.player().set_lossless(lossless);
+    fn set_quality(&self, quality: AudioQuality) {
+        self.player().set_quality(quality);
     }
 
     fn set_sound_check(&self, sound_check: bool) {
@@ -347,7 +348,9 @@ impl Unavailable {
 
 impl Playback for Unavailable {
     fn connect(&self, listener: Listener) {
-        listener(PlayerEvent::View(Box::default()));
+        let problem = format!("Playback is not available: {}", self.reason);
+        let view = PlayerView { lossless_problem: Some(problem), ..PlayerView::default() };
+        listener(PlayerEvent::View(Box::new(view)));
         self.listener.replace(Some(listener));
     }
 
@@ -383,7 +386,7 @@ impl Playback for Unavailable {
     fn set_shuffle(&self, _: bool) {}
     fn set_autoplay(&self, _: bool) {}
     fn set_mode(&self, _: AudioMode) {}
-    fn set_lossless(&self, _: bool) {}
+    fn set_quality(&self, _: AudioQuality) {}
     fn set_sound_check(&self, _: bool) {}
     fn set_stereo_fallback(&self, _: bool) {}
 
@@ -400,6 +403,18 @@ impl Playback for Unavailable {
 mod tests {
     use super::*;
     use amui::types::{AudioFormat, PlayerState};
+
+    #[test]
+    fn a_player_that_could_not_be_made_says_why() {
+        let told: Rc<RefCell<Option<String>>> = Rc::default();
+        let heard = told.clone();
+        Unavailable::new("no data folder".to_string()).connect(Box::new(move |event| {
+            if let PlayerEvent::View(view) = event {
+                heard.replace(view.lossless_problem.clone());
+            }
+        }));
+        assert_eq!(told.borrow().as_deref(), Some("Playback is not available: no data folder"));
+    }
 
     #[test]
     fn loading_says_what_a_song_waits_for() {
@@ -440,6 +455,14 @@ mod tests {
             (Some(AudioFormat::Atmos), "Dolby Atmos", Some(-9.0))
         );
         assert_eq!((view.stereo_fallback, view.autoplay), (false, true));
+        assert_eq!((view.quality, view.lossless_problem), (AudioQuality::Lossless, None));
+        let refused = PlaybackSnapshot {
+            quality: AudioQuality::HiRes,
+            lossless_problem: Some("No route".into()),
+            ..PlaybackSnapshot::default()
+        };
+        let refused = view_of(&refused, true);
+        assert_eq!((refused.quality, refused.lossless_problem.as_deref()), (AudioQuality::HiRes, Some("No route")));
         // the song's own id is no stand-in; another one is what lyrics are asked for
         assert_eq!(view.playing_catalog_id, None);
         let standing_in = PlaybackSnapshot { playing_catalog_id: Some("1000000001".into()), ..snapshot.clone() };

@@ -124,9 +124,19 @@ impl AcquireError {
         matches!(self, AcquireError::NoAtmos(_))
     }
 
-    /// Any failure of the lossless route for which the AAC variant is the right fallback.
+    /// Any failure of the lossless route, for which the next version down is the right fallback.
     pub fn is_lossless(&self) -> bool {
         matches!(self, AcquireError::Lossless(_))
+    }
+
+    /// The song has no ALAC rendition at all.
+    pub fn is_no_lossless(&self) -> bool {
+        matches!(self, AcquireError::Lossless(LosslessError::NoLossless(_)))
+    }
+
+    /// The song does not have the ALAC rendition that was asked for: the route is fine.
+    pub fn is_no_rendition(&self) -> bool {
+        matches!(self, AcquireError::Lossless(error) if error.is_no_rendition())
     }
 
     pub fn is_cancelled(&self) -> bool {
@@ -647,7 +657,17 @@ fn helper_protocol(hello: &Map<String, Value>) -> i128 {
 
 /// The ALAC route as `acquire()` sees it; [`crate::lossless::Lossless`] is the real one.
 pub trait LosslessRoute: Send + Sync {
+    /// The rendition up to 48 kHz, cache key `<id>.lossless`.
     fn acquire_lossless(
+        &self,
+        catalog_id: &str,
+        media_cache: &MediaCache,
+        progress: Option<ProgressFn<'_>>,
+        cancel: Option<&Event>,
+    ) -> Result<AcquireResult, AcquireError>;
+
+    /// The rendition above 48 kHz, cache key `<id>.hires`.
+    fn acquire_hires(
         &self,
         catalog_id: &str,
         media_cache: &MediaCache,
@@ -778,7 +798,8 @@ impl Acquirer {
     /// Dolby-Atmos-off path; the same license flow with that playlist's own PSSH. Cache keys
     /// are `<id>.atmos` / `<id>.stereo`. Variant "lossless": the ALAC rendition through the
     /// local FairPlay wrapper ([`crate::lossless`]; cache key `<id>.lossless`;
-    /// [`AcquireError::Lossless`] when the route cannot deliver it).
+    /// [`AcquireError::Lossless`] when the route cannot deliver it). Variant "hires": the same
+    /// for the rendition above 48 kHz (cache key `<id>.hires`).
     /// Phases reported: "manifest", "license", "download" (with fraction), "decrypt", "done".
     pub fn acquire(
         &self,
@@ -791,8 +812,10 @@ impl Acquirer {
         if !is_catalog_id(catalog_id) {
             return Err(AcquireError::other("catalog id must be numeric"));
         }
-        if variant == "lossless" {
-            return self.lossless.acquire_lossless(catalog_id, media_cache, progress, cancel);
+        match variant {
+            "lossless" => return self.lossless.acquire_lossless(catalog_id, media_cache, progress, cancel),
+            "hires" => return self.lossless.acquire_hires(catalog_id, media_cache, progress, cancel),
+            _ => {}
         }
         if !matches!(variant, "atmos" | "stereo") {
             return Err(AcquireError::other(format!("unknown variant '{variant}'")));
@@ -1203,6 +1226,24 @@ pub(crate) mod testing {
             self.seen.lock().unwrap().push(catalog_id.to_string());
             Ok(AcquireResult {
                 catalog_id: "dispatched".to_string(),
+                path: String::new(),
+                bytes: 0,
+                variant: Map::new(),
+                duration_s: None,
+                from_cache: false,
+            })
+        }
+
+        fn acquire_hires(
+            &self,
+            catalog_id: &str,
+            _media_cache: &MediaCache,
+            _progress: Option<ProgressFn<'_>>,
+            _cancel: Option<&Event>,
+        ) -> Result<AcquireResult, AcquireError> {
+            self.seen.lock().unwrap().push(format!("{catalog_id} hires"));
+            Ok(AcquireResult {
+                catalog_id: "dispatched hires".to_string(),
                 path: String::new(),
                 bytes: 0,
                 variant: Map::new(),
@@ -1691,7 +1732,8 @@ mod tests {
         let http = Arc::new(FakeHttp::unused());
         let (acquirer, route) = acquirer(&config, &http);
         assert_eq!(acquirer.acquire("1", &cache, "lossless", None, None).unwrap().catalog_id, "dispatched");
-        assert_eq!(*route.seen.lock().unwrap(), ["1"]);
+        assert_eq!(acquirer.acquire("2", &cache, "hires", None, None).unwrap().catalog_id, "dispatched hires");
+        assert_eq!(*route.seen.lock().unwrap(), ["1", "2 hires"]);
     }
 
     // --- acquire() against a stand-in helper: what it is told about the playlist's keys, and

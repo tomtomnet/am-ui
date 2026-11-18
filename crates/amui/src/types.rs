@@ -590,6 +590,12 @@ text_enum!(
     /// What is actually playing (stereo = AAC, lossless = ALAC).
     AudioFormat { Atmos => "atmos", Stereo => "stereo", Lossless => "lossless" }
 );
+text_enum!(
+    /// Which version of a song the 2-channel kind asks for: AAC 256 kbps, ALAC up to 24-bit/48 kHz,
+    /// or ALAC up to 24-bit/192 kHz. What is audible may be less: see
+    /// [`PlaybackSnapshot::format_detail`].
+    AudioQuality { Aac => "aac", Lossless => "lossless", HiRes => "hires" }
+);
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PlaybackSnapshot {
@@ -617,7 +623,8 @@ pub struct PlaybackSnapshot {
     pub mode: AudioMode,
     /// Actual format of the playing audio (`None` while idle/loading).
     pub format: Option<AudioFormat>,
-    /// E.g. "E-AC-3 JOC 768 kbps, 15 objects", "AAC 256 kbps", "Lossless · ALAC 24-bit/48 kHz".
+    /// E.g. "Dolby Atmos · E-AC-3 JOC 768 kbps · 15 objects", "AAC 256 kbps", "Lossless · ALAC
+    /// 24-bit/48 kHz", "Hi-Res Lossless · ALAC 24-bit/96 kHz · resampled to 48 kHz".
     pub format_detail: String,
     /// Active downmix profile key.
     pub downmix_profile: Option<String>,
@@ -633,11 +640,17 @@ pub struct PlaybackSnapshot {
     pub sound_check: bool,
     /// Sound Check trim applied to the current track in dB; `None` when unknown or off.
     pub track_gain_db: Option<f64>,
-    /// Prefer ALAC over AAC for 2-channel playback (the setting).
+    /// The quality setting asks for ALAC rather than AAC for 2-channel playback.
     pub lossless: bool,
     /// The lossless route is built and signed in (and not backing off).
     pub lossless_available: bool,
     // What the Python engine's snapshot did not have; not part of `to_json()`.
+    /// The audio quality setting: which version 2-channel playback asks for.
+    #[serde(skip)]
+    pub quality: AudioQuality,
+    /// Why the lossless route cannot be used right now, in a sentence; `None` while it can.
+    #[serde(skip)]
+    pub lossless_problem: Option<String>,
     /// Autoplay is on (the setting): songs like the queue's follow where it ends.
     #[serde(skip)]
     pub autoplay: bool,
@@ -678,6 +691,8 @@ impl Default for PlaybackSnapshot {
             track_gain_db: None,
             lossless: true,
             lossless_available: false,
+            quality: AudioQuality::Lossless,
+            lossless_problem: None,
             autoplay: true,
             station: None,
             playing_catalog_id: None,
@@ -794,6 +809,9 @@ mod tests {
         assert_eq!(RepeatMode::parse("all"), Some(RepeatMode::All));
         assert_eq!(RepeatMode::parse("twice"), None);
         assert_eq!(AudioFormat::Lossless.to_string(), "lossless");
+        assert_eq!(AudioQuality::parse("hires"), Some(AudioQuality::HiRes));
+        assert_eq!(AudioQuality::Aac.as_str(), "aac");
+        assert_eq!(AudioQuality::parse("best"), None);
         let snapshot = PlaybackSnapshot::default().to_json();
         assert_eq!(snapshot["state"], "idle");
         assert_eq!(snapshot["mode"], "atmos");

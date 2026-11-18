@@ -26,12 +26,15 @@
 //!   cancels it. Jobs post their result back to the worker, which owns all decisions. Prefetch
 //!   and mode or profile switches are jobs too.
 //! * A [`Kind`] names the PCM form of a track: atmos (16-channel Cavern render), stereo (AAC
-//!   decode), lossless (ALAC decode through the lossless route) or binaural (2-channel headphone
-//!   render, when the pipeline provides one). Mode, downmix profile and the lossless setting
-//!   select the kind; ready sources are kept per (song, kind) so switching back is instant. With
-//!   Dolby Atmos off (or a song without an Atmos version) the 2-channel kind is lossless when the
-//!   setting is on and the route is signed in, else stereo; a lossless failure falls back to the
-//!   AAC decode with a notice and is remembered for that song.
+//!   decode), lossless (ALAC decode through the lossless route), hires (the same for the rendition
+//!   above 48 kHz, resampled to the output's rate by the decode) or binaural (2-channel headphone
+//!   render, when the pipeline provides one). Mode, downmix profile and the audio quality select
+//!   the kind; ready sources are kept per (song, kind) so switching back is instant. With Dolby
+//!   Atmos off (or a song without an Atmos version) the 2-channel kind is what the quality asks
+//!   for, as far as the route is signed in and the song has it: hires, lossless, stereo. The audio
+//!   traits of a song of the catalog tell without asking; a song that turns out not to have a
+//!   rendition goes one down quietly (the snapshot's format says what is audible), a failure of
+//!   the route does so with a notice, and either is remembered for that song.
 //! * One Cavern process at a time (the render gate): the current track's render runs at once
 //!   and freezes a prefetch render until it is done; prefetch renders wait for a free gate.
 //!   Adaptive start: a growing render is handed to the output once the start buffer exists and
@@ -51,7 +54,7 @@
 //! * Diagnostics go to the playback log; `dump_recent()` saves the last 30 s of the written
 //!   stream as a WAV.
 //! * Settings (mode, profile, volume, fallback, repeat, shuffle, sound_check,
-//!   lossless, autoplay) persist in `<state folder>/player.json` (0600) and are restored at
+//!   quality, autoplay) persist in `<state folder>/player.json` (0600) and are restored at
 //!   construction. No program is started at construction: the output starts on the first play,
 //!   the lossless service on the first lossless song (and is stopped at shutdown when this
 //!   engine started it).
@@ -66,8 +69,8 @@
 //! * Events are [`PlayerEvent`] values; `name()` and `to_json()` give the event name and the
 //!   payload the Python listener gets. The snapshot is [`PlaybackSnapshot`], which has the fields
 //!   of Python's subclass (buffering, underruns, sound_check, track_gain_db,
-//!   lossless, lossless_available), and three that are not part of its `to_json()` (autoplay,
-//!   station, playing_catalog_id).
+//!   lossless, lossless_available), and five that are not part of its `to_json()` (quality,
+//!   lossless_problem, autoplay, station, playing_catalog_id).
 //! * The seams are traits: [`Pipeline`] (Python's class of that name), [`Output`] and
 //!   [`PcmStore`] for the objects the Python tests replaced, [`Source`] for what a pipeline
 //!   hands out (a `PcmSource` plus the controls of a running render) and [`LoudnessStream`] for
@@ -83,7 +86,7 @@
 //!   leaves the snapshot in the step that moves the position (the state is "loading" until the
 //!   next one is on the output, also for the moment a prepared one takes), and a gapless
 //!   continuation changes position, song and state in one step. A swapped variant (mode,
-//!   profile, lossless) is on the output by the time the snapshot shows it. In Python a reader
+//!   profile, quality) is on the output by the time the snapshot shows it. In Python a reader
 //!   on another thread could catch the states in between.
 //! * `shutdown()` waits for the worker, which cancels the jobs, stops the renders, removes the
 //!   in-use markers and stops the output itself; only when it does not end within 5 s does the
@@ -107,6 +110,9 @@
 //!   earlier source of the same cache entry is cancelled. In Python a measurement that never
 //!   reported (its render had been stopped) kept the new source from
 //!   being measured, so it played without its Sound Check trim.
+//! * One setting says which 2-channel version plays, the audio quality (`set_quality()`, "quality"
+//!   in `player.json`), where Python had the switch `lossless`. A file that has only that switch
+//!   is read as "lossless" (on) or "aac" (off).
 //! * The sources outside {previous, current, next} are taken out in one step after a transition;
 //!   in Python a source that a job registered during that step was lost to the bookkeeping.
 //! * The engine has no binaural renderer (as in Python, where the functions the pipeline looked
@@ -189,7 +195,7 @@ use crate::lossless::quality_label;
 use crate::loudness::lock;
 use crate::output::{OutputError, PlaybackLog};
 use crate::render::{RenderError, os_error_name};
-use crate::types::{AcquireResult, AudioFormat, AudioMode, PlaybackSnapshot, RepeatMode, Station, Track};
+use crate::types::{AcquireResult, AudioFormat, AudioMode, AudioQuality, PlaybackSnapshot, RepeatMode, Station, Track};
 use crate::util::{self, Event};
 use crate::web::WebError;
 
@@ -293,8 +299,10 @@ pub enum Kind {
     Atmos,
     /// AAC decode.
     Stereo,
-    /// ALAC decode.
+    /// ALAC decode of the rendition up to 48 kHz.
     Lossless,
+    /// ALAC decode of the rendition above 48 kHz, resampled to the output's rate.
+    HiRes,
     /// 2-channel Cavern headphone render.
     Binaural,
 }
@@ -305,17 +313,25 @@ impl Kind {
             Kind::Atmos => "atmos",
             Kind::Stereo => "stereo",
             Kind::Lossless => "lossless",
+            Kind::HiRes => "hires",
             Kind::Binaural => "binaural",
         }
     }
 
     pub fn parse(text: &str) -> Option<Kind> {
-        [Kind::Atmos, Kind::Stereo, Kind::Lossless, Kind::Binaural].into_iter().find(|kind| kind.as_str() == text)
+        [Kind::Atmos, Kind::Stereo, Kind::Lossless, Kind::HiRes, Kind::Binaural]
+            .into_iter()
+            .find(|kind| kind.as_str() == text)
     }
 
     /// A decoded 2-channel file (the binaural kind is a render).
     pub fn two_channel(self) -> bool {
-        matches!(self, Kind::Stereo | Kind::Lossless)
+        matches!(self, Kind::Stereo | Kind::Lossless | Kind::HiRes)
+    }
+
+    /// Comes through the lossless route.
+    pub fn is_alac(self) -> bool {
+        matches!(self, Kind::Lossless | Kind::HiRes)
     }
 
     /// Made by the renderer from the Dolby Atmos variant.
@@ -332,8 +348,18 @@ impl Kind {
     pub fn format(self) -> AudioFormat {
         match self {
             Kind::Stereo => AudioFormat::Stereo,
-            Kind::Lossless => AudioFormat::Lossless,
+            Kind::Lossless | Kind::HiRes => AudioFormat::Lossless,
             Kind::Atmos | Kind::Binaural => AudioFormat::Atmos,
+        }
+    }
+
+    /// What a notice calls this version of a song.
+    fn version_name(self) -> &'static str {
+        match self {
+            Kind::Stereo => "AAC",
+            Kind::Lossless => "lossless",
+            Kind::HiRes => "Hi-Res Lossless",
+            Kind::Atmos | Kind::Binaural => "Dolby Atmos",
         }
     }
 }
@@ -365,9 +391,19 @@ impl PlayerError {
         matches!(self, PlayerError::Acquire(error) if error.is_no_atmos())
     }
 
-    /// A failure of the lossless route for which the AAC variant is the right fallback.
+    /// A failure of the lossless route, for which the next version down is the right fallback.
     pub fn is_lossless(&self) -> bool {
         matches!(self, PlayerError::Acquire(error) if error.is_lossless())
+    }
+
+    /// The song has no ALAC rendition at all.
+    pub fn is_no_lossless(&self) -> bool {
+        matches!(self, PlayerError::Acquire(error) if error.is_no_lossless())
+    }
+
+    /// The song does not have the ALAC rendition that was asked for: the route is fine.
+    pub fn is_no_rendition(&self) -> bool {
+        matches!(self, PlayerError::Acquire(error) if error.is_no_rendition())
     }
 
     /// Apple refuses the song to the account (a catalog version that was withdrawn); the
@@ -707,12 +743,14 @@ impl Player {
         self.post(Command::SetSoundCheck(enabled));
     }
 
-    /// Prefer the ALAC rendition over the AAC one whenever 2-channel audio plays: Dolby Atmos
-    /// off, or a song without an Atmos version. Default on; it only takes effect while the
-    /// lossless route is built and signed in (`snapshot.lossless_available`). Persisted; applies
-    /// to the playing track on the fly like `set_mode()`.
-    pub fn set_lossless(&self, enabled: bool) {
-        self.post(Command::SetLossless(enabled));
+    /// Which version plays whenever 2-channel audio plays (Dolby Atmos off, or a song without an
+    /// Atmos version): AAC, ALAC up to 48 kHz (the default) or ALAC above it. The ALAC versions
+    /// need the lossless route to be built and signed in (`snapshot.lossless_available`, and
+    /// `snapshot.lossless_problem` says why not); a song without the version plays the next one
+    /// down, and `snapshot.format_detail` says what is audible. Persisted; applies to the playing
+    /// track on the fly like `set_mode()`.
+    pub fn set_quality(&self, quality: AudioQuality) {
+        self.post(Command::SetQuality(quality));
     }
 
     /// The profiles the pipeline offers: the matrix presets of the live downmix and, when there
@@ -751,8 +789,8 @@ impl Player {
         lock(&self.shared.state).stereo_fallback
     }
 
-    pub fn lossless(&self) -> bool {
-        lock(&self.shared.state).lossless
+    pub fn quality(&self) -> AudioQuality {
+        lock(&self.shared.state).quality
     }
 
     pub fn downmix_profile(&self) -> Option<String> {
@@ -853,14 +891,16 @@ fn trailing_digits(text: &str) -> &str {
     &text[text.len() - digits..]
 }
 
-/// "Dolby Atmos · E-AC-3 JOC 768 kbps · 15 objects", "AAC 256 kbps" or "Lossless · ALAC
-/// 24-bit/48 kHz" from the variant an acquisition names (and, for a render, its summary).
+/// "Dolby Atmos · E-AC-3 JOC 768 kbps · 15 objects", "AAC 256 kbps", "Lossless · ALAC
+/// 24-bit/48 kHz" or "Hi-Res Lossless · ALAC 24-bit/96 kHz · resampled to 48 kHz" from the variant
+/// an acquisition names (and, for a render, its summary). The output runs at one rate: ALAC at
+/// any other is resampled on its way there, and the text says so.
 pub fn format_detail_for(kind: Kind, acquired: Option<&AcquireResult>, summary: Option<&Map<String, Value>>) -> String {
     let nothing = Map::new();
     let variant = acquired.map_or(&nothing, |acquired| &acquired.variant);
     let group = text_of(variant.get("audio_group"));
     let codecs = text_of(variant.get("codecs"));
-    if kind == Kind::Lossless {
+    if kind.is_alac() {
         let positive = |name: &str| whole_of(variant.get(name)).filter(|value| *value != 0);
         let (mut rate, mut depth) = (positive("sample_rate"), positive("bit_depth"));
         if rate.is_none() || depth.is_none() {
@@ -873,7 +913,12 @@ pub fn format_detail_for(kind: Kind, acquired: Option<&AcquireResult>, summary: 
             }
         }
         let small = |value: Option<i64>| value.and_then(|value| u32::try_from(value).ok());
-        return quality_label(small(rate), small(depth));
+        let rate = small(rate);
+        let label = quality_label(rate, small(depth));
+        return match rate {
+            Some(rate) if rate != SAMPLE_RATE => format!("{label} · resampled to {} kHz", SAMPLE_RATE / 1000),
+            _ => label,
+        };
     }
     let digits = trailing_digits(&group);
     let kbps = if !digits.is_empty() {

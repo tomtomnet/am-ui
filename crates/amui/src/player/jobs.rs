@@ -337,8 +337,8 @@ impl Shared {
                 Some(folder) => Ok(self.pipeline.complete_render(&folder)?),
                 None => self.render(m4a, cache_key, result, progress, job),
             },
-            // stereo.f32le (AAC) or lossless.f32le (ALAC), see PcmCache::KINDS
-            Kind::Stereo | Kind::Lossless => {
+            // stereo.f32le (AAC), lossless.f32le or hires.f32le (ALAC), see PcmCache::KINDS
+            Kind::Stereo | Kind::Lossless | Kind::HiRes => {
                 let pcm_name = format!("{}.f32le", job.kind.as_str());
                 let folder = match complete {
                     Some(folder) => folder,

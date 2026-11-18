@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use amui::acquire::AcquireError;
 use amui::player::{Container, PlayerEvent, RESUME_FILE, RESUME_POSITION_FILE, RESUME_VERSION, Tuning};
-use amui::types::{AudioMode, PlayerState, RepeatMode, Track};
+use amui::types::{AudioMode, AudioQuality, PlayerState, RepeatMode, Track};
 use amui::web::WebError;
 use serde_json::{Value, json};
 
@@ -328,7 +328,7 @@ fn a_change_of_mode_or_quality_waits_for_the_song_to_be_loaded() {
     run.left_paused();
     let h = run.player();
     h.player.set_mode(AudioMode::Stereo);
-    h.player.set_lossless(false);
+    h.player.set_quality(AudioQuality::Aac);
     h.wait_snapshot("the mode", |snap| snap.mode == AudioMode::Stereo);
     h.settle();
     let snap = h.snapshot();
