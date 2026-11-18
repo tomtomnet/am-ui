@@ -24,6 +24,7 @@ use crate::app::ctx;
 use crate::data::{self, Music, Problem, Res};
 use crate::nav::Dest;
 use crate::pages::{card_action, scrolled, shell};
+use crate::refresh::{Refreshing, Task};
 use crate::signal::background;
 use crate::widgets::card::CardHandler;
 use crate::widgets::shelf::{self, SIDE, Shelf};
@@ -99,24 +100,27 @@ impl Page {
             return self.show_sign_in();
         }
         match self.answered.get() {
-            None => self.load(false),
-            Some(at) if self.stale.get() || outdated(at.elapsed()) => self.load(true),
+            None => self.load(false, None),
+            Some(at) if self.stale.get() || outdated(at.elapsed()) => self.load(true, None),
             Some(_) => {}
         }
     }
 
-    /// The user asked for fresh data (or signed in, or chose another region).
-    fn refresh(self: &Rc<Self>) {
+    /// The user asked for fresh data (or signed in, or chose another region): what is on its way
+    /// may be from before, so a new request takes its place.
+    fn refresh(self: &Rc<Self>, refreshing: &Refreshing) {
         if !self.stack.is_mapped() {
             self.stale.set(true);
         } else if !signed_out() {
-            self.load(self.answered.get().is_some());
+            self.loading.set(false);
+            self.load(self.answered.get().is_some(), Some(refreshing.task()));
         }
     }
 
     /// Ask for the shelves. A quiet request leaves the page as it is until an answer differs
-    /// from what is shown; a problem with it is not the user's concern.
-    fn load(self: &Rc<Self>, quiet: bool) {
+    /// from what is shown; a problem with it is not the user's concern, unless a refresh (`task`)
+    /// waits for it.
+    fn load(self: &Rc<Self>, quiet: bool, task: Option<Task>) {
         if self.loading.replace(true) {
             return;
         }
@@ -140,7 +144,10 @@ impl Page {
         background(
             move || ask(&dest, music.as_ref()),
             move |answer| {
-                if let Some(page) = weak.upgrade() {
+                if let Some(page) = weak.upgrade().filter(|page| page.request.get() == request) {
+                    if let (Err(problem), Some(task)) = (&answer, &task) {
+                        task.failed(problem);
+                    }
                     page.answer(answer, quiet);
                 }
             },
@@ -295,13 +302,13 @@ pub fn page(dest: &Dest) -> adw::NavigationPage {
     let weak = Rc::downgrade(&page);
     page.again.connect_clicked(move |_| {
         if let Some(page) = weak.upgrade() {
-            page.load(false);
+            page.load(false, None);
         }
     });
     let weak = Rc::downgrade(&page);
-    ctx().refreshed.connect(&page.stack, move |_, _| {
+    ctx().refreshed.connect(&page.stack, move |_, refreshing| {
         if let Some(page) = weak.upgrade() {
-            page.refresh();
+            page.refresh(refreshing);
         }
     });
     // signed out: at once; signed in: the application asks every page for fresh data

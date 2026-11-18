@@ -111,12 +111,7 @@ pub fn install(application: &adw::Application, window: &adw::ApplicationWindow) 
             crate::actions::go_to_song(&track);
         }
     });
-    action(window, "refresh", || {
-        let ctx = ctx();
-        ctx.music.refresh();
-        ctx.library.reload(&ctx.music);
-        ctx.refreshed.emit(&());
-    });
+    action(window, "refresh", || ctx().refresh.start());
     // (Escape closes Now Playing as well: the view itself listens for it)
     view_action(window, "now-playing", |ctx| &ctx.show_now_playing);
     view_action(window, "queue", |ctx| &ctx.show_queue);

@@ -26,6 +26,16 @@ fn row(dest: &Dest) -> gtk::ListBoxRow {
     row
 }
 
+/// A spinner that is there while the library is being refreshed (F5).
+fn refresh_spinner() -> adw::Spinner {
+    let spinner = adw::Spinner::new();
+    spinner.set_tooltip_text(Some("Updating your library…"));
+    spinner.upcast_ref::<gtk::Widget>().update_property(&[gtk::accessible::Property::Label("Updating your library")]);
+    spinner.set_visible(false);
+    ctx().refresh.running.connect(&spinner, |spinner, running| spinner.set_visible(*running));
+    spinner
+}
+
 pub fn build(on_select: impl Fn(Dest) + 'static) -> Sidebar {
     let list = gtk::ListBox::new();
     list.add_css_class("navigation-sidebar");
@@ -80,6 +90,7 @@ pub fn build(on_select: impl Fn(Dest) + 'static) -> Sidebar {
         .build();
     let header = adw::HeaderBar::new();
     header.set_title_widget(Some(&adw::WindowTitle::new("Music", "")));
+    header.pack_start(&refresh_spinner());
     header.pack_end(&menu_button);
 
     let widget = adw::ToolbarView::new();

@@ -20,6 +20,7 @@ use crate::pages::detail::{self, Cache, Frame};
 use crate::pages::grid::card_grid;
 use crate::pages::songs::{Line, Place, bind_row, new_row, row_handler};
 use crate::pages::{card_action, shell};
+use crate::refresh::Task;
 use crate::signal::background;
 use crate::widgets::card::CardHandler;
 use crate::widgets::columns::Columns;
@@ -74,15 +75,15 @@ pub fn page(dest: &Dest, target: &Ref) -> adw::NavigationPage {
     let weak = Rc::downgrade(&view);
     view.frame.connect_retry(move || {
         if let Some(view) = weak.upgrade() {
-            view.fetch(false);
+            view.fetch(None);
         }
     });
     let weak = Rc::downgrade(&view);
-    ctx().refreshed.connect(&view.frame.stack, move |_, _| {
+    ctx().refreshed.connect(&view.frame.stack, move |_, refreshing| {
         if let Some(view) = weak.upgrade() {
             view.fetched.set(None);
             if view.frame.stack.is_mapped() {
-                view.fetch(true);
+                view.fetch(Some(refreshing.task()));
             }
         }
     });
@@ -91,7 +92,7 @@ pub fn page(dest: &Dest, target: &Ref) -> adw::NavigationPage {
     let seen = view.clone();
     shell.page.connect_showing(move |_| {
         if !seen.busy.get() && (!seen.frame.has_content() || !detail::is_fresh(seen.fetched.get(), Instant::now())) {
-            seen.fetch(false);
+            seen.fetch(None);
         }
     });
     match CACHE.with(|cache| cache.borrow_mut().get(dest)) {
@@ -99,18 +100,19 @@ pub fn page(dest: &Dest, target: &Ref) -> adw::NavigationPage {
             view.fetched.set(fetched);
             view.show(artist);
             if !detail::is_fresh(fetched, Instant::now()) {
-                view.fetch(false);
+                view.fetch(None);
             }
         }
-        None => view.fetch(false),
+        None => view.fetch(None),
     }
     shell.page
 }
 
 impl View {
     /// Ask the service. While the page shows something that happens quietly: the content is
-    /// replaced only if the answer differs, and a failure is mentioned only when the user `asked`.
-    fn fetch(self: &Rc<Self>, asked: bool) {
+    /// replaced only if the answer differs, and a failure is only told to `task`, the refresh
+    /// that waits for it.
+    fn fetch(self: &Rc<Self>, task: Option<Task>) {
         let generation = self.generation.get() + 1;
         self.generation.set(generation);
         self.busy.set(true);
@@ -125,7 +127,7 @@ impl View {
                 view.busy.set(false);
                 match result {
                     Ok(artist) => view.arrived(Rc::new(artist)),
-                    Err(problem) => view.failed(&problem, asked),
+                    Err(problem) => view.failed(&problem, task.as_ref()),
                 }
             },
         );
@@ -140,11 +142,12 @@ impl View {
         }
     }
 
-    fn failed(&self, problem: &Problem, asked: bool) {
+    fn failed(&self, problem: &Problem, task: Option<&Task>) {
+        if let Some(task) = task {
+            task.failed(problem);
+        }
         if !self.frame.has_content() {
             self.frame.fail("Couldn't Load This Artist", problem);
-        } else if asked {
-            ctx().toast.emit(&problem.message);
         }
     }
 

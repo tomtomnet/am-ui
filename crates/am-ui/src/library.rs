@@ -290,6 +290,9 @@ impl Rows {
     }
 }
 
+/// What waits for the lists to be fetched (`Library::reload_then`).
+type Waiter = Box<dyn FnOnce(Option<Problem>)>;
+
 pub struct Library {
     pub albums: gio::ListStore,
     pub artists: gio::ListStore,
@@ -305,6 +308,8 @@ pub struct Library {
     pub changed: Signal<Kind>,
     /// Why the lists that failed last could not be fetched.
     problems: RefCell<HashMap<Kind, Problem>>,
+    /// What waits for every list to be fetched.
+    waiters: RefCell<Vec<Waiter>>,
     /// Where the lists are kept between runs; `None`: nowhere (the demonstration).
     snapshots: Option<Snapshots>,
     /// What was changed here and the service may not show yet.
@@ -326,6 +331,7 @@ impl Default for Library {
             started: Cell::new(false),
             changed: Signal::new(),
             problems: RefCell::default(),
+            waiters: RefCell::default(),
             snapshots: None,
             edits: RefCell::default(),
         }
@@ -401,6 +407,13 @@ impl Library {
         }
     }
 
+    /// Load every list again; `done` runs when they are all there, or with what went wrong. Its
+    /// answer comes from requests made from now on, also for a list that is being fetched.
+    pub fn reload_then(self: &Rc<Self>, music: &Arc<dyn Music>, done: impl FnOnce(Option<Problem>) + 'static) {
+        self.waiters.borrow_mut().push(Box::new(done));
+        self.reload(music);
+    }
+
     /// Load one list again. If it is being fetched, its fetch is followed by another: what is on
     /// its way may be from before what made this one necessary.
     pub fn reload_kind(self: &Rc<Self>, music: &Arc<dyn Music>, kind: Kind) {
@@ -470,8 +483,23 @@ impl Library {
                 if done.again.borrow_mut().remove(&kind) {
                     done.reload_kind(&music, kind);
                 }
+                done.tell_waiters();
             },
         );
+    }
+
+    /// Every list has been fetched: tell what waits for that.
+    fn tell_waiters(&self) {
+        if !self.loading.borrow().is_empty() {
+            return;
+        }
+        let waiters = self.waiters.take();
+        if !waiters.is_empty() {
+            let problem = self.problem();
+            for waiter in waiters {
+                waiter(problem.clone());
+            }
+        }
     }
 
     /// Keep a list as it is now for the next run.
@@ -794,7 +822,7 @@ mod reload_tests {
     }
 
     #[test]
-    fn a_failed_fetch_leaves_a_list_as_it_was() {
+    fn a_failed_fetch_leaves_a_list_as_it_was_and_is_told() {
         with_loop(|settle| {
             let music: Arc<dyn Music> = Arc::new(DemoMusic::quick(Duration::ZERO, "fail-once"));
             let library = Rc::new(Library::default());
@@ -803,20 +831,27 @@ mod reload_tests {
             let before = names(&library, Kind::Albums);
             assert!(library.problem().is_none() && !before.is_empty());
 
-            // every list fails: the lists stay
+            // every list fails: what waits is told, once, and the lists stay
             music.refresh();
-            library.reload(&music);
-            settle(&|| idle(&library));
+            let told = Rc::new(RefCell::new(Vec::new()));
+            let seen = told.clone();
+            library.reload_then(&music, move |problem| seen.borrow_mut().push(problem));
+            assert!(told.borrow().is_empty(), "the lists are on their way");
+            settle(&|| idle(&library) && !told.borrow().is_empty());
+            assert_eq!(told.borrow().len(), 1);
             assert_eq!(
-                library.problem().map(|problem| problem.message),
-                Some("The demonstration was told to fail once.".to_string())
+                told.borrow()[0].as_ref().map(|problem| problem.message.as_str()),
+                Some("The demonstration was told to fail once.")
             );
             assert_eq!(names(&library, Kind::Albums), before);
+            assert!(library.problem().is_some());
 
-            // the next time it works
+            // the next time it works: what waits is told that all is well
             music.refresh();
-            library.reload(&music);
-            settle(&|| idle(&library));
+            let seen = told.clone();
+            library.reload_then(&music, move |problem| seen.borrow_mut().push(problem));
+            settle(&|| told.borrow().len() == 2);
+            assert_eq!(told.borrow()[1], None);
             assert!(library.problem().is_none());
             assert_eq!(names(&library, Kind::Albums), before);
         });

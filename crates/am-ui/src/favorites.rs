@@ -54,6 +54,14 @@ impl Favorites {
         });
     }
 
+    /// Ask again about every song asked about so far (fresh data was wanted).
+    pub fn refresh(self: &Rc<Self>, music: &Arc<dyn Music>) {
+        let ids: Vec<String> = self.asked.borrow().iter().cloned().collect();
+        for chunk in ids.chunks(100) {
+            self.ask(music, chunk.to_vec());
+        }
+    }
+
     fn ask(self: &Rc<Self>, music: &Arc<dyn Music>, ids: Vec<String>) {
         let (music, favorites) = (music.clone(), self.clone());
         background(

@@ -4,6 +4,7 @@ use adw::prelude::*;
 use amui::types::AudioMode;
 
 use crate::app::ctx;
+use crate::refresh::Refreshing;
 
 fn switch(title: &str, subtitle: &str, active: bool, changed: impl Fn(bool) + 'static) -> adw::SwitchRow {
     let row = adw::SwitchRow::new();
@@ -65,7 +66,7 @@ fn region_row() -> adw::ComboRow {
                         let ctx = ctx();
                         match done {
                             // the pages show the other catalog from now on
-                            Ok(()) => ctx.refreshed.emit(&()),
+                            Ok(()) => ctx.refreshed.emit(&Refreshing::unobserved()),
                             Err(problem) => ctx.toast.emit(&problem.message),
                         }
                     },
@@ -112,10 +113,16 @@ pub fn show_preferences(parent: &impl IsA<gtk::Widget>) {
     look.add(&appearance);
 
     let refresh = adw::ButtonRow::new();
-    refresh.set_title("Refresh Library Now");
     refresh.connect_activated(|row| {
         let _ = row.activate_action("win.refresh", None);
     });
+    // what a running refresh looks like here: the window's spinner is behind this dialog
+    let follow = |row: &adw::ButtonRow, running: bool| {
+        row.set_title(if running { "Updating Library…" } else { "Refresh Library Now" });
+        row.set_sensitive(!running);
+    };
+    follow(&refresh, ctx.refresh.is_running());
+    ctx.refresh.running.connect(&refresh, move |row, running| follow(row, *running));
     let library = adw::PreferencesGroup::new();
     library.set_title("Library");
     library.add(&region_row());
@@ -129,6 +136,15 @@ pub fn show_preferences(parent: &impl IsA<gtk::Widget>) {
     page.add(&library);
     let dialog = adw::PreferencesDialog::new();
     dialog.add(&page);
+    // how a refresh ended, in the dialog that covers the window's messages
+    ctx.refresh.finished.connect(&dialog, |dialog, (message, updated)| {
+        let toast = adw::Toast::builder()
+            .title(message.as_str())
+            .use_markup(false)
+            .timeout(if *updated { 3 } else { 6 })
+            .build();
+        dialog.add_toast(toast);
+    });
     dialog.present(Some(parent));
 }
 

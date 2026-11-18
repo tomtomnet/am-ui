@@ -49,6 +49,7 @@ mod pages;
 mod playback;
 mod player;
 mod prefs;
+mod refresh;
 mod regions;
 mod scroll;
 mod settings;

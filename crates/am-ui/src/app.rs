@@ -21,6 +21,7 @@ use crate::pages::detail::Target;
 use crate::pages::search::{Scope, Search};
 use crate::playback::Playback;
 use crate::player::Player;
+use crate::refresh::{Refresh, Refreshing};
 use crate::settings::Settings;
 use crate::signal::Signal;
 use crate::{shot, window};
@@ -171,8 +172,10 @@ pub struct Ctx {
     pub playlist_changed: Signal<String>,
     /// This library playlist was deleted.
     pub playlist_deleted: Signal<String>,
-    /// The user asked for fresh data: pages fetch what they show again.
-    pub refreshed: Signal<()>,
+    /// Fresh data is wanted: pages fetch what they show again.
+    pub refreshed: Signal<Refreshing>,
+    /// "Refresh": everything fetched again, and whether that is under way.
+    pub refresh: Rc<Refresh>,
     pub settings: Rc<Settings>,
     pub account: Rc<Account>,
 }
@@ -363,7 +366,7 @@ fn follow_account(ctx: &Rc<Ctx>) {
         let Some(ctx) = weak.upgrade() else { return };
         ctx.music.refresh();
         ctx.library.reload(&ctx.music);
-        ctx.refreshed.emit(&());
+        ctx.refreshed.emit(&Refreshing::unobserved());
     });
 }
 
@@ -418,6 +421,7 @@ pub fn activate(application: &adw::Application, options: &Options) {
         playlist_changed: Signal::new(),
         playlist_deleted: Signal::new(),
         refreshed: Signal::new(),
+        refresh: Rc::default(),
         settings: settings.clone(),
         account: Account::new(account),
     });

@@ -354,6 +354,8 @@ follows: `research/engine-api.md` and the notes of 2026-11-14 summarised in
 - Apple applies changes of the library some time after accepting them. A playlist created, renamed
   or deleted, a song added or removed shows at once and counts over Apple's answers for ten minutes
   (`edits.rs`).
+- F5 or Ctrl+R fetches everything again (`refresh.rs`): a spinner in the sidebar's header meanwhile,
+  a message when it is over.
 - Pages fade in when opened or closed; switching sections is instant.
 - Rows, cards and lists measure themselves in their fonts, so everything follows the desktop's text
   size and display scale (the "Text size" rule in `crates/am-ui/README.md`).

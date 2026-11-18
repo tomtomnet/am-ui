@@ -62,10 +62,25 @@ pub fn build(application: &adw::Application, ctx: &Rc<Ctx>) -> adw::ApplicationW
     let toasts = adw::ToastOverlay::new();
     toasts.set_child(Some(&layout));
     {
-        let toasts = toasts.clone();
+        let shown = toasts.clone();
         ctx.toast.connect_forever(move |message| {
             // the text is shown as it is: a song's title may hold "&" or "<"
-            toasts.add_toast(adw::Toast::builder().title(message.as_str()).use_markup(false).timeout(3).build())
+            shown.add_toast(adw::Toast::builder().title(message.as_str()).use_markup(false).timeout(3).build())
+        });
+        // how a refresh ended: the message of the one before gives way, so that they do not queue
+        let (shown, last) = (toasts.clone(), std::cell::RefCell::new(None::<adw::Toast>));
+        ctx.refresh.finished.connect_forever(move |(message, updated)| {
+            if let Some(old) = last.take() {
+                old.dismiss();
+            }
+            let toast = adw::Toast::builder()
+                .title(message.as_str())
+                .use_markup(false)
+                .timeout(if *updated { 3 } else { 6 })
+                .priority(adw::ToastPriority::High)
+                .build();
+            shown.add_toast(toast.clone());
+            last.replace(Some(toast));
         });
         let toast = ctx.clone();
         ctx.favorites.failed.connect_forever(move |message| toast.toast.emit(message));

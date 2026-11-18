@@ -31,6 +31,7 @@ use crate::nav::Dest;
 use crate::pages::detail::{self, Cache, Frame};
 use crate::pages::shell;
 use crate::pages::songs::{Line, Place, track_list_in};
+use crate::refresh::{Refreshing, Task};
 use crate::signal::background;
 use crate::widgets::cover::{Blank, Cover, mosaic};
 use crate::widgets::embedded::Embedded;
@@ -255,14 +256,14 @@ pub fn page(dest: &Dest, kind: Kind, target: &Ref) -> adw::NavigationPage {
     let weak = Rc::downgrade(&view);
     view.frame.connect_retry(move || {
         if let Some(view) = weak.upgrade() {
-            view.fetch(false);
+            view.fetch(None);
         }
     });
     let ctx = ctx();
     let weak = Rc::downgrade(&view);
-    ctx.refreshed.connect(&view.frame.stack, move |_, _| {
+    ctx.refreshed.connect(&view.frame.stack, move |_, refreshing| {
         if let Some(view) = weak.upgrade() {
-            view.outdated(true);
+            view.outdated(Some(refreshing));
         }
     });
     let weak = Rc::downgrade(&view);
@@ -271,7 +272,7 @@ pub fn page(dest: &Dest, kind: Kind, target: &Ref) -> adw::NavigationPage {
             && view.is_playlist(id)
         {
             view.edited();
-            view.outdated(false);
+            view.outdated(None);
         }
     });
     let weak = Rc::downgrade(&view);
@@ -308,10 +309,10 @@ impl View {
                 self.fetched.set(fetched);
                 self.show(collection, true);
                 if !detail::is_fresh(fetched, Instant::now()) {
-                    self.fetch(false);
+                    self.fetch(None);
                 }
             }
-            None => self.fetch(false),
+            None => self.fetch(None),
         }
     }
 
@@ -321,7 +322,7 @@ impl View {
             return;
         }
         if !self.frame.has_content() || !detail::is_fresh(self.fetched.get(), Instant::now()) {
-            self.fetch(false);
+            self.fetch(None);
         }
     }
 
@@ -334,11 +335,11 @@ impl View {
     }
 
     /// What is shown may have changed: ask again now if the page is on screen, else when it is
-    /// seen next. `asked`: the user wants to know if that fails.
-    fn outdated(self: &Rc<Self>, asked: bool) {
+    /// seen next. `refreshing`: the user asked for fresh data and waits for the answer.
+    fn outdated(self: &Rc<Self>, refreshing: Option<&Refreshing>) {
         self.fetched.set(None);
         if self.frame.stack.is_mapped() && !self.gone.get() {
-            self.fetch(asked);
+            self.fetch(refreshing.map(Refreshing::task));
         }
     }
 
@@ -356,8 +357,8 @@ impl View {
     }
 
     /// Ask the service. While the page shows something that happens quietly: what differs in the
-    /// answer changes on the page, and a failure is mentioned only when the user `asked`.
-    fn fetch(self: &Rc<Self>, asked: bool) {
+    /// answer changes on the page, and a failure is only told to `task`, the refresh that waits.
+    fn fetch(self: &Rc<Self>, task: Option<Task>) {
         let generation = self.generation.get() + 1;
         self.generation.set(generation);
         self.busy.set(true);
@@ -394,7 +395,7 @@ impl View {
                 view.busy.set(false);
                 match result {
                     Ok(collection) => view.arrived(Rc::new(collection)),
-                    Err(problem) => view.failed(&problem, asked),
+                    Err(problem) => view.failed(&problem, task.as_ref()),
                 }
             },
         );
@@ -408,8 +409,11 @@ impl View {
         self.show(collection, true);
     }
 
-    fn failed(&self, problem: &Problem, asked: bool) {
+    fn failed(&self, problem: &Problem, task: Option<&Task>) {
         let ctx = ctx();
+        if let Some(task) = task {
+            task.failed(problem);
+        }
         if !self.frame.has_content() {
             let title = match self.kind {
                 Kind::Album => "Couldn't Load This Album",
@@ -420,8 +424,6 @@ impl View {
             // part of a long playlist is shown: the rest is asked for when the page is seen next
             self.fetched.set(None);
             ctx.toast.emit(&format!("Not all songs could be loaded: {}", problem.message));
-        } else if asked {
-            ctx.toast.emit(&problem.message);
         }
     }
 
