@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
   <gresource prefix="/dev/amui/Music">
-    <file>icons/scalable/apps/dev.amui.Music.svg</file>
+    <file>icons/256x256/apps/dev.amui.Music.png</file>
     <file>icons/scalable/actions/am-album-symbolic.svg</file>
     <file>icons/scalable/actions/am-audio-input-microphone-symbolic.svg</file>
     <file>icons/scalable/actions/am-audio-volume-high-symbolic.svg</file>

@@ -124,5 +124,6 @@ am-ui stands on the work of others:
 were written by Anthropic's Claude (in Claude Code), directed, reviewed and tested by its author.
 
 am-ui is an independent project, not affiliated with or endorsed by Apple or Dolby. Apple Music is
-a trademark of Apple Inc. and Dolby Atmos a trademark of Dolby Laboratories. You need your own Apple
+a trademark of Apple Inc., whose logo is this application's icon, and Dolby Atmos a trademark of
+Dolby Laboratories. You need your own Apple
 Music subscription.

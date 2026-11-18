@@ -382,7 +382,7 @@ refresh_kde() {
 }
 install_desktop_entry() {
     local data_home=${XDG_DATA_HOME:-$HOME/.local/share} command=$here/am-ui entry
-    local applications=$data_home/applications icons=$data_home/icons/hicolor/scalable/apps
+    local applications=$data_home/applications icons=$data_home/icons/hicolor/256x256/apps
     # the Exec key's quoting, for a folder with spaces or other special characters
     case "$command" in
         *[!A-Za-z0-9_./-]*)
@@ -394,7 +394,9 @@ install_desktop_entry() {
     mkdir -p -- "$applications" "$icons"
     printf '%s\n' "${entry//@EXEC@/"$command"}" >"$applications/dev.amui.Music.desktop.tmp"
     mv -- "$applications/dev.amui.Music.desktop.tmp" "$applications/dev.amui.Music.desktop"
-    cp -- "$here/crates/app/resources/icons/scalable/apps/dev.amui.Music.svg" "$icons/dev.amui.Music.svg"
+    cp -- "$here/crates/app/resources/icons/256x256/apps/dev.amui.Music.png" "$icons/dev.amui.Music.png"
+    # the vector icon of earlier versions would be taken in its place
+    rm -f -- "$data_home/icons/hicolor/scalable/apps/dev.amui.Music.svg"
     # menus notice new entries by themselves on most desktops; these only make it immediate
     if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -e "$data_home/icons/hicolor/index.theme" ]; then
         gtk-update-icon-cache -q -t -f "$data_home/icons/hicolor" 2>/dev/null || true

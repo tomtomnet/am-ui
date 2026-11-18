@@ -38,7 +38,8 @@ var=$here/var
 data_home=${XDG_DATA_HOME:-$HOME/.local/share}
 applications=$data_home/applications
 entry=$applications/dev.amui.Music.desktop
-icon=$data_home/icons/hicolor/scalable/apps/dev.amui.Music.svg
+icon=$data_home/icons/hicolor/256x256/apps/dev.amui.Music.png
+old_icon=$data_home/icons/hicolor/scalable/apps/dev.amui.Music.svg
 
 # Programs of this folder that are running, by the file they were started from.
 running_from() {
@@ -75,7 +76,7 @@ remove() {
     local path
     for path in "$@"; do
         case "$path" in
-            "$here"/?*|"$entry"|"$icon") ;;
+            "$here"/?*|"$entry"|"$icon"|"$old_icon") ;;
             *) die "not removing $path: it is outside this folder" ;;
         esac
         if [ -L "$path" ]; then
@@ -120,7 +121,7 @@ entry_is_ours() {
 if [ -e "$entry" ] && ! entry_is_ours; then
     printf '\nThe application menu entry starts another copy of am-ui: it stays.\n'
 else
-    remove "$entry" "$icon"
+    remove "$entry" "$icon" "$old_icon"
     if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -e "$data_home/icons/hicolor/index.theme" ]; then
         gtk-update-icon-cache -q -t -f "$data_home/icons/hicolor" 2>/dev/null || true
     fi

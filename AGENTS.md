@@ -180,7 +180,7 @@ Steps, each of which looks first and does only what is missing:
    commits, checksummed toolchains: Android NDK, Go) and 3 GB on disk. Built again only after
    `tools/lossless` changed; while its service runs an update waits.
 8. **The desktop entry**: `dev.amui.Music.desktop` and its icon under `~/.local/share`
-   (`applications/`, `icons/hicolor/scalable/apps/`), starting this folder's `./am-ui`. The file name
+   (`applications/`, `icons/hicolor/256x256/apps/`), starting this folder's `./am-ui`. The file name
    is the application id, by which desktops match the window to the entry.
 9. **The doctor**: `target/release/amui doctor`.
 
