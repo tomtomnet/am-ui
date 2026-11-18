@@ -229,3 +229,27 @@ fn single_library_items_come_with_what_their_pages_show() {
         assert_eq!(artist.library_id.as_deref(), Some(id.as_str()));
     }
 }
+
+#[test]
+#[ignore = "asks Apple's service with this machine's sign-in"]
+fn lyrics_do_not_depend_on_the_chosen_region() {
+    // the chosen region is saved with the storefront files: a private folder keeps the real choice
+    let folder = tempfile::tempdir().unwrap();
+    let api = client().with_cache_dir(folder.path());
+    let account = api.storefront().expect("the account's storefront");
+    let charts = api.charts().expect("the charts");
+    let songs: Vec<&str> = charts
+        .songs
+        .iter()
+        .filter(|song| song.has_lyrics == Some(true))
+        .filter_map(|song| song.catalog_id.as_deref())
+        .take(5)
+        .collect();
+    assert!(!songs.is_empty(), "the charts have songs with lyrics");
+    let region = ["us", "jp"].into_iter().find(|code| *code != account).unwrap();
+    api.set_catalog_storefront(Some(region)).expect("another region");
+    let lines = |id: &str| api.lyrics(id).ok().flatten().map_or(0, |lyrics| lyrics.lines.len());
+    let found = songs.iter().filter(|id| lines(id) > 0).count();
+    println!("lyrics with another region chosen: {found} of {} songs that have them", songs.len());
+    assert!(found > 0, "lyrics come back whatever region is chosen");
+}
