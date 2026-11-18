@@ -823,6 +823,8 @@ struct Cached {
 struct State {
     responses: HashMap<String, Cached>,
     stored: u64,
+    /// Counts the times answers were dropped: an answer that was on its way meanwhile is not kept.
+    dropped: u64,
     storefront: Option<String>,
     /// The language tags of the storefronts that were asked for theirs.
     languages: HashMap<String, Vec<String>>,
@@ -893,22 +895,29 @@ impl MusicApi {
     // --- transport + cache
 
     pub fn clear_cache(&self) {
-        self.state().responses.clear();
+        let mut state = self.state();
+        state.responses.clear();
+        state.dropped += 1;
     }
 
     fn get(&self, path: &str, params: &[Param], ttl: Option<f64>) -> Result<Body, ApiError> {
         let url = url(path, params);
-        {
+        let dropped = {
             let state = self.state();
             if let Some(hit) = state.responses.get(&url)
                 && hit.expires > (self.clock)()
             {
                 return Ok(hit.body.clone());
             }
-        }
+            state.dropped
+        };
         // network outside the lock; errors (WebError::Auth among them) come back unchanged
         let body: Body = Arc::new(self.http.get_json(&url, &[])?);
         let mut state = self.state();
+        if state.dropped != dropped {
+            // answers were dropped while this one was on its way: it may be from before that
+            return Ok(body);
+        }
         if state.responses.len() >= MAX_CACHE_ENTRIES {
             let now = (self.clock)();
             state.responses.retain(|_, cached| cached.expires > now);
@@ -1353,7 +1362,9 @@ impl MusicApi {
     /// "/v1/me/library").
     fn drop_cached(&self, prefixes: &[&str]) {
         let dropped = |path: &str| prefixes.iter().any(|prefix| path.starts_with(prefix));
-        self.state().responses.retain(|url, _| !url.strip_prefix(API).is_some_and(dropped));
+        let mut state = self.state();
+        state.responses.retain(|url, _| !url.strip_prefix(API).is_some_and(dropped));
+        state.dropped += 1;
     }
 
     /// Forget cached answers under these paths (none given: the whole library) so the next read
@@ -2039,6 +2050,32 @@ mod tests {
         *now.lock().unwrap() = TTL_DEFAULT + 1.0;
         tracks(2000);
         assert_eq!(api.state().responses.len(), 1);
+    }
+
+    #[test]
+    fn an_answer_on_its_way_while_the_cache_is_emptied_is_not_kept() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let client: Arc<OnceLock<Arc<MusicApi>>> = Arc::default();
+        let emptying = Arc::new(AtomicBool::new(false));
+        let (during, flag) = (client.clone(), emptying.clone());
+        let served = Served::new(move |_| {
+            if flag.swap(false, Ordering::SeqCst) {
+                during.get().unwrap().clear_cache();
+            }
+            Answer::ok(br#"{"data": []}"#)
+        });
+        let api = client.get_or_init(|| Arc::new(served.restarted())).clone();
+        // an answer is kept for the next time
+        api.library_album_tracks("l.1").unwrap();
+        api.library_album_tracks("l.1").unwrap();
+        assert_eq!(served.requests(), 1);
+        // the cache is emptied while the request runs: its answer is not kept
+        emptying.store(true, Ordering::SeqCst);
+        api.library_album_tracks("l.2").unwrap();
+        api.library_album_tracks("l.2").unwrap();
+        assert_eq!(served.requests(), 3);
+        api.library_album_tracks("l.2").unwrap();
+        assert_eq!(served.requests(), 3);
     }
 
     #[test]
