@@ -239,19 +239,21 @@ const ACQUIRE: Spec = Spec {
             "--lossless",
             "the ALAC rendition through the FairPlay wrapper (tools/lossless; needs its sign-in)",
         ),
+        Opt::switch("--hires", "the ALAC rendition above 48 kHz, up to 192 kHz, through the same wrapper"),
     ],
     arguments: &[Arg::one("song", "Apple Music song URL or numeric catalog id")],
-    exclusive: &[&["--stereo", "--lossless"]],
+    exclusive: &[&["--stereo", "--lossless", "--hires"]],
 };
 
 fn cmd_acquire(context: &Context, args: &[String], console: &mut Console) -> i32 {
     run(&ACQUIRE, args, console, |args, console| {
         data_folders(context)?;
         let catalog_id = song(args.word("song"))?;
-        let variant = match (args.flag("--lossless"), args.flag("--stereo")) {
-            (true, _) => "lossless",
-            (false, true) => "stereo",
-            (false, false) => "atmos",
+        let variant = match (args.flag("--hires"), args.flag("--lossless"), args.flag("--stereo")) {
+            (true, _, _) => "hires",
+            (false, true, _) => "lossless",
+            (false, false, true) => "stereo",
+            (false, false, false) => "atmos",
         };
         let started = (context.clock)();
         let elapsed = || (context.clock)() - started;
@@ -482,14 +484,17 @@ fn cmd_render(context: &Context, args: &[String], console: &mut Console) -> i32 
     })
 }
 
-const DECODE: Spec = one_song(
-    "decode",
-    "decode the cached stereo AAC (or ALAC) file to f32le",
-    &[
+const DECODE: Spec = Spec {
+    name: "decode",
+    description: "decode the cached stereo AAC (or ALAC) file to f32le",
+    options: &[
         Opt::switch("--force", ""),
         Opt::switch("--lossless", "the cached ALAC file (<id>.lossless) instead of the AAC one"),
+        Opt::switch("--hires", "the cached ALAC file above 48 kHz (<id>.hires), resampled to 48 kHz"),
     ],
-);
+    arguments: &[Arg::one("song", "")],
+    exclusive: &[&["--lossless", "--hires"]],
+};
 
 fn cmd_decode(context: &Context, args: &[String], console: &mut Console) -> i32 {
     run(&DECODE, args, console, |args, console| {
@@ -497,7 +502,11 @@ fn cmd_decode(context: &Context, args: &[String], console: &mut Console) -> i32 
         let catalog_id = song(args.word("song"))?;
         let config = &context.config;
         let (media, pcm) = (MediaCache::new(config.clone()), PcmCache::new(config));
-        let kind = if args.flag("--lossless") { "lossless" } else { "stereo" };
+        let kind = match (args.flag("--hires"), args.flag("--lossless")) {
+            (true, _) => "hires",
+            (false, true) => "lossless",
+            (false, false) => "stereo",
+        };
         let key = format!("{catalog_id}.{kind}");
         let pcm_name = format!("{kind}.f32le");
         let Some(m4a) = media.get(&key)? else {
@@ -788,6 +797,9 @@ mod tests {
         let ran = scratch.run(&["acquire", "1000000002", "--lossless"]);
         assert_eq!((ran.status, ran.out.as_str()), (1, "acquire 1000000002 (lossless)\n"));
         assert_eq!(ran.err, "error: the lossless route is not built (./setup.sh builds it)\n");
+        let ran = scratch.run(&["acquire", "1000000002", "--hires"]);
+        assert_eq!((ran.status, ran.out.as_str()), (1, "acquire 1000000002 (hires)\n"));
+        assert_eq!(ran.err, "error: the lossless route is not built (./setup.sh builds it)\n");
         assert!(scratch.route.asked.lock().unwrap().is_empty());
     }
 
@@ -866,7 +878,9 @@ mod tests {
             (&["acquire"][..], "the following arguments are required: song"),
             (&["acquire", "1", "--stereo", "--lossless"], "argument --lossless: not allowed with argument --stereo"),
             (&["render", "1", "2"], "unrecognized arguments: 2"),
+            (&["acquire", "1", "--lossless", "--hires"], "argument --hires: not allowed with argument --lossless"),
             (&["decode", "--force"], "the following arguments are required: song"),
+            (&["decode", "1", "--lossless", "--hires"], "argument --hires: not allowed with argument --lossless"),
             (&["downmix", "--preamp", "loud"], "argument --preamp: invalid float value: 'loud'"),
             (&["downmix", "--preamp"], "argument --preamp: expected one argument"),
             (&["downmix", "--li"], "ambiguous option: --li could match --list, --live"),

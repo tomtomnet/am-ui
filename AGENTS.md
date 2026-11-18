@@ -367,9 +367,9 @@ follows: `research/engine-api.md` and the notes of 2026-11-14 summarised in
 | `albums`, `artists`, `songs`, `playlists`, `recently-added`, `tracks KEY` | the library |
 | `search TERM`, `song ID`, `lyrics ID`, `recent`, `home`, `charts` | the catalog |
 | `atmos-check ID` | whether Apple offers Dolby Atmos for a song (manifest only) |
-| `acquire ID [--stereo\|--lossless]` | license, download and decrypt into the media cache |
+| `acquire ID [--stereo\|--lossless\|--hires]` | license, download and decrypt into the media cache |
 | `lossless [--start\|--stop\|--check ID]` | the ALAC route's state, a song's renditions |
-| `render ID`, `decode ID` | render or decode a cached song |
+| `render ID`, `decode ID [--lossless\|--hires]` | render or decode a cached song |
 | `downmix [KEY] [--preamp DB] [--list]` | the downmix profiles |
 | `cache [--evict]` | what is cached |
 | `wrapper SUBCOMMAND` | the lossless service (see Playback) |
