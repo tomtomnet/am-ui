@@ -8,10 +8,10 @@ what position is reported, the last entry of the segment table, the events that 
 lines the block logged. The commands' own log lines follow at the end. Gains are printed as the bits
 of their doubles; the trims among them come from the C library's pow().
 
-The Rust test `follows_the_python_feeder_block_by_block` (crates/amui/src/output.rs) runs the same
+The Rust test `follows_the_python_feeder_block_by_block` (crates/engine/src/output.rs) runs the same
 script and compares its lines with output_trace.txt, which is what this prints:
 
-    python3 crates/amui/tests/reference/output_trace.py > crates/amui/tests/reference/output_trace.txt
+    python3 crates/engine/tests/reference/output_trace.py > crates/engine/tests/reference/output_trace.txt
 
 Sources are synthetic; their folders carry made-up ids.
 """

@@ -239,6 +239,16 @@ run_cargo() {
 
 # ----------------------------------------------------------------------------- 3. the application
 step "3. The application (target/release/am-ui and target/release/amui)"
+# The crates' folders had other names. git moved what it tracks; generated files stayed behind.
+if [ -d "$here/crates/am-ui/demo/covers" ] && [ ! -e "$here/crates/app/demo/covers" ]; then
+    mv -- "$here/crates/am-ui/demo/covers" "$here/crates/app/demo/covers"
+fi
+for old_folder in "$here/crates/am-ui" "$here/crates/amui"; do
+    [ -d "$old_folder" ] || continue
+    find "$old_folder" -type d -name __pycache__ -prune -exec rm -rf -- {} +
+    find "$old_folder" -depth -type d -empty -delete
+    if [ -d "$old_folder" ]; then note "${old_folder#"$here/"} holds files of its own: left in place"; fi
+done
 if [ -z "$cargo" ]; then
     if [ -x "$app" ]; then note "kept the existing build (no cargo to build it again)"; else bad "application: not built (needs the Rust of step 2)"; fi
 elif [ "$libraries_ok" = 0 ]; then
@@ -368,11 +378,11 @@ install_desktop_entry() {
             command=${command//\$/\\\$}; command=\"${command//%/%%}\"
             command=${command//\\/\\\\} ;;
     esac
-    entry=$(<"$here/crates/am-ui/data/dev.amui.Music.desktop.in")
+    entry=$(<"$here/crates/app/data/dev.amui.Music.desktop.in")
     mkdir -p -- "$applications" "$icons"
     printf '%s\n' "${entry//@EXEC@/"$command"}" >"$applications/dev.amui.Music.desktop.tmp"
     mv -- "$applications/dev.amui.Music.desktop.tmp" "$applications/dev.amui.Music.desktop"
-    cp -- "$here/crates/am-ui/resources/icons/scalable/apps/dev.amui.Music.svg" "$icons/dev.amui.Music.svg"
+    cp -- "$here/crates/app/resources/icons/scalable/apps/dev.amui.Music.svg" "$icons/dev.amui.Music.svg"
     # menus notice new entries by themselves on most desktops; these only make it immediate
     if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database -q "$applications" 2>/dev/null || true; fi
     if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -e "$data_home/icons/hicolor/index.theme" ]; then

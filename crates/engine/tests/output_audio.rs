@@ -1,10 +1,10 @@
 //! `PipeWireOutput` through its real consumer, the PulseAudio stream, into the null sink of a
 //! private audio server. Ignored: they need that server and are run by hand through
-//! `crates/amui/tools/private-audio.sh`, which starts one (PipeWire, WirePlumber without device
+//! `crates/engine/tools/private-audio.sh`, which starts one (PipeWire, WirePlumber without device
 //! monitors, pipewire-pulse, one null sink) and points these tests at it:
 //!
 //! ```sh
-//! crates/amui/tools/private-audio.sh cargo test -p amui --offline --test output_audio -- --ignored --test-threads 1 --nocapture
+//! crates/engine/tools/private-audio.sh cargo test -p amui --offline --test output_audio -- --ignored --test-threads 1 --nocapture
 //! ```
 //!
 //! Without the script they refuse to run: they must never reach the desktop session's server.
@@ -36,7 +36,7 @@ const MARK: f32 = 0.25;
 /// The private server's folder, or a refusal to go on.
 fn private_server() -> PathBuf {
     let dir = std::env::var("AMUI_PRIVATE_AUDIO")
-        .expect("run these tests through crates/amui/tools/private-audio.sh: they need its private audio server");
+        .expect("run these tests through crates/engine/tools/private-audio.sh: they need its private audio server");
     let server = std::env::var("PULSE_SERVER").unwrap_or_default();
     assert_eq!(server, format!("unix:{dir}/pulse/native"), "PULSE_SERVER must name the private server");
     assert!(dir.starts_with("/tmp/amui-audio-"), "{dir}");
@@ -264,7 +264,7 @@ fn percentile(values: &mut [f64], at: f64) -> f64 {
 
 /// The latency the stream reports (given but not heard yet) settles near the buffer asked for.
 #[test]
-#[ignore = "needs the private audio server: crates/amui/tools/private-audio.sh"]
+#[ignore = "needs the private audio server: crates/engine/tools/private-audio.sh"]
 fn latency_settles_near_the_target() {
     let player = Player::new(amui::output::BUFFER_MS);
     player.report("latency");
@@ -300,7 +300,7 @@ fn latency_settles_near_the_target() {
 /// Pause fades out at once and corks the stream: the server takes nothing more and positions
 /// stand still; resume gives back what the pause took, so that every frame is heard once.
 #[test]
-#[ignore = "needs the private audio server: crates/amui/tools/private-audio.sh"]
+#[ignore = "needs the private audio server: crates/engine/tools/private-audio.sh"]
 fn pause_stops_the_stream_and_resume_loses_no_frame() {
     let recorder = Recorder::start();
     let player = Player::new(amui::output::BUFFER_MS);
@@ -366,7 +366,7 @@ fn pause_stops_the_stream_and_resume_loses_no_frame() {
 /// follow the old audio at once (a silence, a skip or a repeat between them would click; a
 /// flush of the playing stream did that to a few of every twenty seeks).
 #[test]
-#[ignore = "needs the private audio server: crates/amui/tools/private-audio.sh"]
+#[ignore = "needs the private audio server: crates/engine/tools/private-audio.sh"]
 fn a_seek_is_heard_at_once() {
     let recorder = Recorder::start();
     let player = Player::new(amui::output::BUFFER_MS);
@@ -447,7 +447,7 @@ fn a_seek_is_heard_at_once() {
 /// A minute of playback while twice as many busy loops as there are processors run beside
 /// it: no underflow, no starvation.
 #[test]
-#[ignore = "needs the private audio server: crates/amui/tools/private-audio.sh"]
+#[ignore = "needs the private audio server: crates/engine/tools/private-audio.sh"]
 fn no_underflow_under_load() {
     let player = Player::new(amui::output::BUFFER_MS);
     player.report("load");
@@ -501,7 +501,7 @@ fn no_underflow_under_load() {
 /// A feeder held up for 150 ms plays through; held up for a second, the server runs out once,
 /// says so, and playback goes on where it was.
 #[test]
-#[ignore = "needs the private audio server: crates/amui/tools/private-audio.sh"]
+#[ignore = "needs the private audio server: crates/engine/tools/private-audio.sh"]
 fn a_stalled_feeder() {
     let recorder = Recorder::start();
     let player = Player::new(amui::output::BUFFER_MS);
@@ -554,7 +554,7 @@ fn a_stalled_feeder() {
 /// The numbers behind the buffer's size: for some buffers, the latency the stream settles at and
 /// the longest feeder stall it plays through.
 #[test]
-#[ignore = "needs the private audio server: crates/amui/tools/private-audio.sh"]
+#[ignore = "needs the private audio server: crates/engine/tools/private-audio.sh"]
 fn buffer_sizes() {
     for buffer_ms in [100, 150, 200, 250] {
         let player = Player::new(buffer_ms);

@@ -246,7 +246,7 @@ call sites, no signature changed; `storefront()` still returns the account's.
 Cache keys contain the storefront, so switching needs no invalidation.
 (In the Rust engine the override only decides what the catalog shows: lyrics, song
 lookups and the search for a withdrawn song's current version go to the account's
-storefront, see the top of `crates/amui/src/api.rs`.)
+storefront, see the top of `crates/engine/src/api.rs`.)
 
 Live verification (one playlist, minimal; names/ids reported to the user only):
 `create_playlist` → 201 with the resource (name and `description.standard`

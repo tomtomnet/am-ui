@@ -2,8 +2,8 @@
 # Run a program inside a private headless Wayland compositor: nothing appears on the real
 # display, and the desktop session (its D-Bus, its settings, its windows) is not touched.
 #
-#   crates/am-ui/tools/headless.sh [-s WIDTHxHEIGHT] PROGRAM [ARGUMENTS...]
-#   crates/am-ui/tools/headless.sh target/debug/am-ui --demo --page albums --screenshot /tmp/albums.png
+#   crates/app/tools/headless.sh [-s WIDTHxHEIGHT] PROGRAM [ARGUMENTS...]
+#   crates/app/tools/headless.sh target/debug/am-ui --demo --page albums --screenshot /tmp/albums.png
 #
 # The compositor (mutter --headless, or KWin's virtual backend where there is no mutter) gets one
 # virtual monitor (default 3840x2160, run at scale 2 like a real 4K display), its own D-Bus session

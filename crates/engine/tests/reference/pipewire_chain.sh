@@ -2,7 +2,7 @@
 # Builds pipewire_chain (see pipewire_chain.c) in a folder of its own and prints the SHA-256 of
 # what PipeWire's filter code gives for the cases of dsp::tests::matches_pipewire_s_own_code.
 #
-#   crates/amui/tests/reference/pipewire_chain.sh [SOURCES]
+#   crates/engine/tests/reference/pipewire_chain.sh [SOURCES]
 #
 # SOURCES is a folder with biquad.c, biquad.h and audio-dsp-c.c of PipeWire 1.6.11; without it
 # they are fetched from PipeWire's repository into a temporary folder.

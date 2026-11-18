@@ -13,7 +13,7 @@
  * It keeps its connection until its input ends: KWin's pointer exists only as long as this program
  * does, and a window loses its open menus when the pointer goes away. KWin allows the protocol only
  * with KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 in the compositor's environment, which `headless.sh`
- * passes on. Build with tools/fake-input.sh, see crates/am-ui/README.md.
+ * passes on. Build with tools/fake-input.sh, see crates/app/README.md.
  */
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>

@@ -1,8 +1,8 @@
-# am-ui: the engine (crates/amui) and the GTK application built on it.
+# am-ui: the engine (crates/engine) and the GTK application built on it.
 # The prototypes of the toolkit study and the helper sources under workspace/ and tools/ are
 # separate Cargo projects with their own lock files.
 [workspace]
-members = ["crates/amui", "crates/am-ui"]
+members = ["crates/engine", "crates/app"]
 exclude = ["proto", "bench", "workspace", "tools", "var", "notes-local"]
 resolver = "3"
 

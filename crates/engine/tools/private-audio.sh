@@ -3,9 +3,9 @@
 # of their own, with a null sink as the only sink. Nothing is played on a real device, and the
 # desktop session's audio server (its sockets, its D-Bus session, its settings) is not touched.
 #
-#   crates/amui/tools/private-audio.sh PROGRAM [ARGUMENTS...]
-#   crates/amui/tools/private-audio.sh cargo test -p amui --offline --test output_audio -- --ignored --test-threads 1 --nocapture
-#   crates/amui/tools/private-audio.sh pactl list short sinks
+#   crates/engine/tools/private-audio.sh PROGRAM [ARGUMENTS...]
+#   crates/engine/tools/private-audio.sh cargo test -p amui --offline --test output_audio -- --ignored --test-threads 1 --nocapture
+#   crates/engine/tools/private-audio.sh pactl list short sinks
 #
 # The three programs run inside their own D-Bus session with runtime, configuration, state, data
 # and cache folders of their own under /tmp/amui-audio-<uid>. They know no hardware: WirePlumber's

@@ -1,10 +1,10 @@
 """The numbers amui/loudness.py reports for signals the Rust tests rebuild bit for bit.
 
-`loudness::tests::matches_the_python_implementation` (crates/amui/src/loudness.rs) holds what this
+`loudness::tests::matches_the_python_implementation` (crates/engine/src/loudness.rs) holds what this
 prints. The signals use integer steps and exact float operations only (a 64-bit linear congruential
 generator, Paul Kellet's pinking filter, one square root), so both languages produce the same samples:
 
-    python3 crates/amui/tests/reference/loudness_values.py
+    python3 crates/engine/tests/reference/loudness_values.py
 """
 from __future__ import annotations
 

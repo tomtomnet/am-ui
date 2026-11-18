@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""What the Python command line prints, for the Rust port (crates/amui/src/cli) to compare with.
+"""What the Python command line prints, for the Rust port (crates/engine/src/cli) to compare with.
 
-    python3 -I crates/amui/tests/reference/cli_reference.py > crates/amui/tests/fixtures/cli_reference.json
+    python3 -I crates/engine/tests/reference/cli_reference.py > crates/engine/tests/fixtures/cli_reference.json
 
 The commands of amui/cli_library.py and amui/cli_pipeline.py are run by the Python engine itself over
 a scratch folder (its own AMUI_VAR, a copy of the workspace tools, its own HOME) and a stand-in
@@ -24,7 +24,7 @@ The output holds
   probe module's `track_id`), the doctor's report lines, the progress lines `acquire` prints for a
   list of reports, and how Python spells values that came out of a JSON file.
 
-The tests of crates/amui/src/cli/reference.rs run the same command lines over the same states.
+The tests of crates/engine/src/cli/reference.rs run the same command lines over the same states.
 """
 from __future__ import annotations
 
@@ -354,7 +354,7 @@ class ToolRun:
     """`subprocess` for amui.downmix: the tool's `apply` command without a sink.
 
     The engine runs `downmix.py apply <key> --preamp <dB>`; the tool finds the node, sets its
-    controls and prints the node and the matrix (crates/amui/tests/reference/generate.py holds the
+    controls and prints the node and the matrix (crates/engine/tests/reference/generate.py holds the
     same account of it)."""
 
     DEVNULL = subprocess.DEVNULL

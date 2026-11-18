@@ -234,7 +234,7 @@ pub(crate) mod tests {
     }
 
     /// What can only be checked with a window on a display, in one test because GTK lives on
-    /// one thread: `crates/am-ui/tools/headless.sh cargo test -p am-ui -- --ignored display`.
+    /// one thread: `crates/app/tools/headless.sh cargo test -p am-ui -- --ignored display`.
     #[test]
     #[ignore = "needs a display (run it under tools/headless.sh)"]
     fn widgets_on_a_display() {

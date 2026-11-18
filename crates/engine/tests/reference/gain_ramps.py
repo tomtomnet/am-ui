@@ -1,10 +1,10 @@
 """The gain ramp of amui/output.py (`_apply_gain`) in bits: what numpy makes of a block of 0.5.
 
-`output::tests::gain_ramps_are_numpy_s` (crates/amui/src/output.rs) holds what this prints: frames
+`output::tests::gain_ramps_are_numpy_s` (crates/engine/src/output.rs) holds what this prints: frames
 0, 1, 240 and 479 of a block whose samples are all 0.5, after the ramp from the first gain to the
 second.
 
-    python3 crates/amui/tests/reference/gain_ramps.py
+    python3 crates/engine/tests/reference/gain_ramps.py
 """
 from __future__ import annotations
 

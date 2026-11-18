@@ -14,8 +14,8 @@ __pycache__/
 *.orig
 /*.png
 /.claude/
-# The demonstration's generated covers (crates/am-ui/demo/gen_demo.py makes them again).
-/crates/am-ui/demo/covers/
+# The demonstration's generated covers (crates/app/demo/gen_demo.py makes them again).
+/crates/app/demo/covers/
 # Private working notes (unscrubbed originals, ledger): never pushed.
 /notes-local/
 

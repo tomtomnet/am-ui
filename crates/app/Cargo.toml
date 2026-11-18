@@ -7,7 +7,7 @@ publish.workspace = true
 
 [dependencies]
 adw.workspace = true
-amui = { path = "../amui" }
+amui = { path = "../engine" }
 async-channel.workspace = true
 gtk.workspace = true
 image.workspace = true

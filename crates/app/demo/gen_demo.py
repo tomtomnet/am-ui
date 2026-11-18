@@ -4,7 +4,7 @@
   albums.json                   [{id, title, artist, cover}] (invented names)
   nowplaying.json               {title, artist, cover, lines[24]} (placeholder text)
 
-    python3 crates/am-ui/demo/gen_demo.py      (needs numpy and Pillow)
+    python3 crates/app/demo/gen_demo.py      (needs numpy and Pillow)
 
 Without the covers the demonstration shows empty artwork.
 """

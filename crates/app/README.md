@@ -9,9 +9,9 @@ popovers of libadwaita, styled toward Apple Music's palette and typography.
 cargo run -p am-ui -- --demo                       # generated data, no account, no sound
 cargo run -p am-ui -- --demo --page albums --playing
 cargo run -p am-ui -- --demo --open playlist:p.0
-crates/am-ui/tools/headless.sh target/debug/am-ui --demo --page songs --playing --size 1440x900 --screenshot /tmp/songs.png
-crates/am-ui/tools/headless.sh target/debug/am-ui --demo --open album:l.5 --scroll 400 --size 900x700 --screenshot /tmp/album.png
-crates/am-ui/tools/headless.sh target/debug/am-ui --demo --page albums --sort artist --view list --size 900x700 --screenshot /tmp/albums.png
+crates/app/tools/headless.sh target/debug/am-ui --demo --page songs --playing --size 1440x900 --screenshot /tmp/songs.png
+crates/app/tools/headless.sh target/debug/am-ui --demo --open album:l.5 --scroll 400 --size 900x700 --screenshot /tmp/album.png
+crates/app/tools/headless.sh target/debug/am-ui --demo --page albums --sort artist --view list --size 900x700 --screenshot /tmp/albums.png
 ```
 
 `--page NAME` starts on a page (`home new radio recent artists albums songs playlists search`),
@@ -41,8 +41,8 @@ reads commands (`click X Y`, `right X Y`, `move X Y`, `press`, `release`, `scrol
 large as the monitor, the coordinates are the window's:
 
 ```sh
-crates/am-ui/tools/fake-input.sh
-crates/am-ui/tools/headless.sh -s 1400x850 bash -c '
+crates/app/tools/fake-input.sh
+crates/app/tools/headless.sh -s 1400x850 bash -c '
   AMUI_SHOT_DELAY_MS=4000 target/debug/am-ui --demo --page albums --size 1400x850 --screenshot /tmp/shot.png &
   printf "sleep 1.5\nclick 1179 814\nsleep 3\n" | target/tools/fake-input; wait'
 ```
@@ -77,7 +77,7 @@ many frames the window drew and which tick callbacks and timers of Now Playing, 
 the queue ran:
 
 ```sh
-crates/am-ui/tools/headless.sh target/debug/am-ui --demo --playing --song 2 --seek 20 --activity \
+crates/app/tools/headless.sh target/debug/am-ui --demo --playing --song 2 --seek 20 --activity \
     --at 3 win.now-playing --at 8 win.play-pause --at 13 win.play-pause --at 18 win.now-playing --at 22 app.quit
 ```
 
@@ -200,6 +200,6 @@ Fixtures and demo data are synthetic.
 `cargo fmt --all`, `cargo test -p am-ui`, and a headless screenshot of every page or state that
 was touched, looked at before the work is called done. What needs a window to be checked (how
 `Embedded` places the rows of a list while its page scrolls) is one test that only runs in the
-headless compositor: `crates/am-ui/tools/headless.sh cargo test -p am-ui -- --ignored display`.
+headless compositor: `crates/app/tools/headless.sh cargo test -p am-ui -- --ignored display`.
 What moves by itself is checked with `--activity` (above): the callbacks of a view count zero
 while it is hidden, and with playback paused the window draws no frame at all.

@@ -1,4 +1,4 @@
-"""Stand-in for tools/lossless/wrapperctl.py in the tests of crates/amui/src/session.rs.
+"""Stand-in for tools/lossless/wrapperctl.py in the tests of crates/engine/src/session.rs.
 
 The tests copy this file to <scratch>/tools/lossless/wrapperctl.py, and the engine starts it there
 the way it starts the real helper. It signs nobody in: no wrapper, no network, no account. It

@@ -298,7 +298,7 @@ the "missing" bass was the early LFE cancelling the mains' bass around 40-50 Hz.
 
 ## 9. The LFE's alignment (2026-11-15)
 
-Measured on song B with the engine's own downmix (`crates/amui/src/dsp.rs`, PEQdB, flat EQ;
+Measured on song B with the engine's own downmix (`crates/engine/src/dsp.rs`, PEQdB, flat EQ;
 `cargo run --release -p amui --example downmix_file`) against the reference capture. The capture's clock wanders
 (the lag grows from about -1 to +177 samples over the song, not linearly), so the comparison follows it: lags of
 2 s windows, then 0.25 s windows aligned on the band above 150 Hz with fractional refinement.

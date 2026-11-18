@@ -7,8 +7,8 @@ changing anything.
 
 More detail, closer to the code:
 
-- `crates/amui/README.md`: the engine's modules and conventions
-- `crates/am-ui/README.md`: the application's structure, its rules (text size, threads, widgets)
+- `crates/engine/README.md`: the engine's modules and conventions
+- `crates/app/README.md`: the application's structure, its rules (text size, threads, widgets)
   and the options of the headless screenshots
 - `workspace/README.md`: the vendored engine tools
 - `research/`: the investigations behind the renderer, the lossless route and the API (index below)
@@ -23,7 +23,7 @@ These hold for every change, by a person or an agent.
   URLs, PSSH data, license challenges and responses, and keys are never printed, logged, copied
   into notes or committed. Code that handles them keeps them in memory and redacts them from errors.
 - Credentials are sent only to `amp-api.music.apple.com` and `play.itunes.apple.com`, over HTTPS,
-  never on redirects. CDN, artwork and manifest requests are anonymous. `crates/amui/src/web.rs`
+  never on redirects. CDN, artwork and manifest requests are anonymous. `crates/engine/src/web.rs`
   enforces this; keep every new request inside it.
 - A sign-in is the account owner's action. An agent never starts an Apple sign-in, never triggers a
   verification code, and never runs `tools/lossless/login.sh`, `wrapper login` or
@@ -37,9 +37,9 @@ These hold for every change, by a person or an agent.
 **The developer's machine**
 
 - The window is looked at headlessly, never on the developer's display:
-  `crates/am-ui/tools/headless.sh` runs it in a private compositor with its own D-Bus session.
+  `crates/app/tools/headless.sh` runs it in a private compositor with its own D-Bus session.
 - Tests that play audio run against a private audio server, never the desktop's:
-  `crates/amui/tools/private-audio.sh` starts a PipeWire daemon with a null sink only.
+  `crates/engine/tools/private-audio.sh` starts a PipeWire daemon with a null sink only.
 - Nothing changes the system's audio setup (PipeWire configuration, sinks, volumes, mute states).
 - Code that deletes files (`uninstall.sh`, clean-up steps, their tests) runs only in a sandbox where
   all but its work folder is read-only: `bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid
@@ -60,7 +60,7 @@ These hold for every change, by a person or an agent.
   "song A", ids like 1234567890, invented names in the demo data. This holds for notes, logs and
   measurements too: a benchmark or a log is about a machine, so it stays out of the repository.
   Look through every file that is about to be pushed, not only the code. `var/` and `notes-local/`
-  are never committed; `crates/amui/tests/repo_hygiene.rs` checks the ignore rules.
+  are never committed; `crates/engine/tests/repo_hygiene.rs` checks the ignore rules.
 - Commit messages describe the change to the code, neutrally: what changed and why, not who asked
   or what was reported. When an AI agent wrote the change, end the message with a
   `Co-Authored-By:` line for it.
@@ -84,13 +84,13 @@ local FairPlay wrapper (tools/lossless, the same sign-in) ─► ALAC 24-bit ─
 
 Two Rust crates in one Cargo workspace:
 
-- **`crates/amui`**, the engine (library and program `amui`): Apple Music's web API, the session,
+- **`crates/engine`**, the engine (library and program `amui`): Apple Music's web API, the session,
   song acquisition (Widevine route for Dolby Atmos and AAC, FairPlay wrapper route for ALAC), the
   caches, the Cavern render, decoding, loudness, the in-app downmix and equalizer, the audio
   output, and the player (queue, Autoplay, stations). No user interface.
-- **`crates/am-ui`**, the GTK 4 / libadwaita application (program `am-ui`). It talks to the
+- **`crates/app`**, the GTK 4 / libadwaita application (program `am-ui`). It talks to the
   engine through four traits (`data::Music`, `playback::Playback`, `account::AccountService`, the
-  equalizer service), implemented by adapters in `crates/am-ui/src/engine/` and, for `--demo`, by
+  equalizer service), implemented by adapters in `crates/app/src/engine/` and, for `--demo`, by
   invented data (`demo.rs`, `demo_playback.rs`).
 
 External programs, built by `setup.sh` and run by path:
@@ -106,16 +106,16 @@ External programs, built by `setup.sh` and run by path:
 
 | path | what |
 |---|---|
-| `crates/amui/src/` | the engine: `config` (paths, settings), `types`, `util`, `web` (HTTP with the credential rules), `api` and `api/discover.rs` (web API; Home, New, Radio, stations), `lyrics` (TTML), `session` (sign-in state, native sign-in), `cache` (media, PCM, art), `acquire` (Widevine route), `lossless` and `wrapper` (FairPlay route and its service), `render` (Cavern), `loudness`, `downmix`, `dsp`, `eq`, `output` (the stream), `player` (queue, Autoplay, stations, prefetch), `doctor`, `cli` |
-| `crates/amui/tests/` | integration tests; `reference/` and `fixtures/` (values computed by the first, Python version, see `reference/README.md`); `live.rs` (hand-run checks against Apple, `#[ignore]`) |
-| `crates/amui/examples/downmix_file.rs` | runs the app's downmix over a 16-channel render file |
-| `crates/amui/tools/private-audio.sh` | a private audio server for tests |
-| `crates/am-ui/src/` | the application: `app.rs` (start, options, shared context), `window.rs`, `nav.rs`, `pages/`, `widgets/`, `engine/` (adapters), `library.rs` (lists and their snapshots), `finder.rs` (library search), `sorting.rs`, `mpris.rs`, `demo*.rs`, `style.css` |
-| `crates/am-ui/tools/headless.sh` | the window in a private headless compositor (mutter, or KWin's virtual backend) |
-| `crates/am-ui/tools/fake-input.*` | a real pointer and keyboard for headless runs under KWin |
-| `crates/am-ui/resources/icons/` | every icon the window shows (`am-*-symbolic`) and the application's icon, so that no desktop theme can change them |
-| `crates/am-ui/data/` | the desktop entry's template |
-| `crates/am-ui/demo/` | the demonstration's invented albums and lyrics; `gen_demo.py` makes the covers (git-ignored) |
+| `crates/engine/src/` | the engine: `config` (paths, settings), `types`, `util`, `web` (HTTP with the credential rules), `api` and `api/discover.rs` (web API; Home, New, Radio, stations), `lyrics` (TTML), `session` (sign-in state, native sign-in), `cache` (media, PCM, art), `acquire` (Widevine route), `lossless` and `wrapper` (FairPlay route and its service), `render` (Cavern), `loudness`, `downmix`, `dsp`, `eq`, `output` (the stream), `player` (queue, Autoplay, stations, prefetch), `doctor`, `cli` |
+| `crates/engine/tests/` | integration tests; `reference/` and `fixtures/` (values computed by the first, Python version, see `reference/README.md`); `live.rs` (hand-run checks against Apple, `#[ignore]`) |
+| `crates/engine/examples/downmix_file.rs` | runs the app's downmix over a 16-channel render file |
+| `crates/engine/tools/private-audio.sh` | a private audio server for tests |
+| `crates/app/src/` | the application: `app.rs` (start, options, shared context), `window.rs`, `nav.rs`, `pages/`, `widgets/`, `engine/` (adapters), `library.rs` (lists and their snapshots), `finder.rs` (library search), `sorting.rs`, `mpris.rs`, `demo*.rs`, `style.css` |
+| `crates/app/tools/headless.sh` | the window in a private headless compositor (mutter, or KWin's virtual backend) |
+| `crates/app/tools/fake-input.*` | a real pointer and keyboard for headless runs under KWin |
+| `crates/app/resources/icons/` | every icon the window shows (`am-*-symbolic`) and the application's icon, so that no desktop theme can change them |
+| `crates/app/data/` | the desktop entry's template |
+| `crates/app/demo/` | the demonstration's invented albums and lyrics; `gen_demo.py` makes the covers (git-ignored) |
 | `tools/cavern-lab/` | the patched Cavern copy (`cavern-src`), the probe that renders (`probe/`), `build.sh`, `render-music-916-lab.sh`, analysis scripts (`analyze.py`, `bands.py`, ...) |
 | `tools/drm-helper/` | `build.sh` and `patches/` for the Widevine helper |
 | `tools/lossless/` | the wrapper route: `build.sh`, `wrapperctl.py`, `login.sh`, `start.sh`/`stop.sh`/`status.sh`, patches, `go/amui-fairplay-rip` |
@@ -144,11 +144,11 @@ The About dialog shows the commit a build was made from (`+`: with uncommitted c
 - The engine's tests use stand-ins for the network, the helpers and the audio server; nothing
   contacts Apple. `cargo test -p amui --test live -- --ignored` runs hand-made checks against the
   real service with the saved sign-in: read-only, and they print shapes, never values.
-- Audio tests that need a real server: `crates/amui/tools/private-audio.sh cargo test -p amui
+- Audio tests that need a real server: `crates/engine/tools/private-audio.sh cargo test -p amui
   --offline --test output_audio -- --ignored --test-threads 1`.
-- Screenshots: `crates/am-ui/tools/headless.sh [-s 3840x2160] target/release/am-ui --demo --page
+- Screenshots: `crates/app/tools/headless.sh [-s 3840x2160] target/release/am-ui --demo --page
   albums --size 1400x900 --screenshot /tmp/shot.png`. Options for pages, dialogs, the player, text
-  scale (`--text-scale 1.5`) and the demo's timing are listed in `crates/am-ui/README.md`. The
+  scale (`--text-scale 1.5`) and the demo's timing are listed in `crates/app/README.md`. The
   private compositor follows the desktop's scaling factor; `GSETTINGS_BACKEND=memory` in front gives
   scale 1.
 - Without `--demo` the window runs on the real engine and the saved sign-in; it refuses the options
@@ -209,7 +209,7 @@ entry and icon, so a step that writes somewhere new adds that path there. It ref
 | `AMUI_SIGNIN=browser` | prefer a saved browser session over the native sign-in |
 | `AMUI_LANGUAGE` | the catalog's language (default: the desktop's `LC_ALL`, `LC_MESSAGES`, `LANG`) |
 | `LOSSLESS_PORT`, `LOSSLESS_DNS`, `LOSSLESS_CA_BUNDLE` | the wrapper service's port (12351), resolvers and CA bundle |
-| `AMUI_DEMO_*`, `AMUI_SHOT_DELAY_MS` | the demo's timing and size, the screenshot's moment (`crates/am-ui/README.md`) |
+| `AMUI_DEMO_*`, `AMUI_SHOT_DELAY_MS` | the demo's timing and size, the screenshot's moment (`crates/app/README.md`) |
 
 ## Runtime data: `var/` (mode 0700)
 
@@ -315,7 +315,7 @@ its first second; later estimates are ramped in over 1.5 s.
 **Downmix and equalizer** (`dsp.rs`, `downmix.rs`, `eq.rs`): the 16 channels become stereo in the
 app, with the arithmetic of the PipeWire filter chain the first version used (32-bit floats,
 cookbook biquads, the mixers' summing order, integer delays), bit-identical to PipeWire 1.6.11's
-code (`crates/amui/tests/reference/pipewire_chain.c`, rebuilt by `pipewire_chain.sh`). Per side:
+code (`crates/engine/tests/reference/pipewire_chain.c`, rebuilt by `pipewire_chain.sh`). Per side:
 eight channels times their gains, a delay matching the LFE low-pass, the LFE through a 4th-order
 low-pass, preamp, then the equalizer's shelves and peaks. Profiles: PEQdB (every channel at 1.0,
 centre -3 dB, LFE +7.1 dB after a 125 Hz low-pass), Apple fold-down (macOS's, measured: everything
@@ -358,7 +358,7 @@ follows: `research/engine-api.md` and the notes of 2026-11-14 summarised in
   a message when it is over.
 - Pages fade in when opened or closed; switching sections is instant.
 - Rows, cards and lists measure themselves in their fonts, so everything follows the desktop's text
-  size and display scale (the "Text size" rule in `crates/am-ui/README.md`).
+  size and display scale (the "Text size" rule in `crates/app/README.md`).
 - MPRIS gives the desktop's media keys and controls.
 
 ## Engine command line

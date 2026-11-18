@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Reference values for the Rust ports of amui/downmix.py, amui/eq.py and workspace/tools/downmix.py.
 
-    python3 crates/amui/tests/reference/generate.py > crates/amui/tests/reference/python.json
+    python3 crates/engine/tests/reference/generate.py > crates/engine/tests/reference/python.json
 
 Everything here is computed by the Python implementation: the tool's tables and pure functions
 (resolve, controls, show, node_value, parse_eq, eq_controls), the engine's pure functions (profiles,
 expected_controls, effective_preamp, parse, response, curve, ...) and state files written into a
 temporary folder. Nothing is applied: no pw-cli, no pw-dump, no sink, and no file outside the
-temporary folder is read or written. The tests in crates/amui/src/downmix.rs and eq.rs compare the
+temporary folder is read or written. The tests in crates/engine/src/downmix.rs and eq.rs compare the
 Rust results with python.json.
 
 Floats are written as their Python repr in strings, so a reader gets every bit back.

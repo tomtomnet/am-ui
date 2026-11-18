@@ -1,5 +1,5 @@
 /* What PipeWire's own filter code makes of a 16-channel signal in the graph of the sink
- * "Atmos 9.1.6 Downmix": the reference of crates/amui/src/dsp.rs.
+ * "Atmos 9.1.6 Downmix": the reference of crates/engine/src/dsp.rs.
  *
  * This file holds none of PipeWire's code. It includes two files of PipeWire's source tree
  * (version 1.6.11: spa/plugins/audioconvert/biquad.c for the coefficients, and the plain C

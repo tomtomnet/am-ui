@@ -1,5 +1,5 @@
 //! Generated data for `am-ui --demo`: a library, a catalog, playlists, shelves and lyrics made
-//! from the invented albums of `crates/am-ui/demo` (`gen_demo.py` there makes their covers). No
+//! from the invented albums of `crates/app/demo` (`gen_demo.py` there makes their covers). No
 //! account, no network.
 
 use std::collections::{HashMap, HashSet};
@@ -101,7 +101,7 @@ fn sung(text: &str, begin: f64, held: bool) -> Vec<Word> {
 
 impl DemoMusic {
     pub fn new(root: &Path) -> DemoMusic {
-        let assets = root.join("crates/am-ui/demo");
+        let assets = root.join("crates/app/demo");
         let albums: Vec<Source> = std::fs::read(assets.join("albums.json"))
             .ok()
             .and_then(|data| serde_json::from_slice(&data).ok())

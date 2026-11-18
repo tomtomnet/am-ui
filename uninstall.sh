@@ -120,7 +120,7 @@ fi
 cavern=$here/tools/cavern-lab
 downloader=$here/workspace/builds/music-downloader
 remove "$here/target" "$var/build" "$var/toolchains" "$var/tmp" \
-    "$here/crates/am-ui/demo/covers" \
+    "$here/crates/app/demo/covers" \
     "$cavern/probe/bin" "$cavern/probe/obj" \
     "$cavern/cavern-src/Cavern/bin" "$cavern/cavern-src/Cavern/obj" \
     "$cavern/cavern-src/Cavern.Format/bin" "$cavern/cavern-src/Cavern.Format/obj" \
