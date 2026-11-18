@@ -107,7 +107,10 @@ External programs, built by `setup.sh` and run by path:
 | `crates/amui/examples/downmix_file.rs` | runs the app's downmix over a 16-channel render file |
 | `crates/amui/tools/private-audio.sh` | a private audio server for tests |
 | `crates/am-ui/src/` | the application: `app.rs` (start, options, shared context), `window.rs`, `nav.rs`, `pages/`, `widgets/`, `engine/` (adapters), `library.rs` (lists and their snapshots), `finder.rs` (library search), `sorting.rs`, `mpris.rs`, `demo*.rs`, `style.css` |
-| `crates/am-ui/tools/headless.sh` | the window in a private headless compositor |
+| `crates/am-ui/tools/headless.sh` | the window in a private headless compositor (mutter, or KWin's virtual backend) |
+| `crates/am-ui/tools/fake-input.*` | a real pointer and keyboard for headless runs under KWin |
+| `crates/am-ui/resources/icons/` | every icon the window shows (`am-*-symbolic`) and the application's icon, so that no desktop theme can change them |
+| `crates/am-ui/data/` | the desktop entry's template |
 | `crates/am-ui/demo/` | the demonstration's invented albums and lyrics; `gen_demo.py` makes the covers (git-ignored) |
 | `tools/cavern-lab/` | the patched Cavern copy (`cavern-src`), the probe that renders (`probe/`), `build.sh`, `render-music-916-lab.sh`, analysis scripts (`analyze.py`, `bands.py`, ...) |
 | `tools/drm-helper/` | `build.sh` and `patches/` for the Widevine helper |
@@ -131,6 +134,8 @@ cargo clippy --offline --workspace
 ./am-ui --demo                             # the window with invented data and a silent player
 ./am-ui cli help                           # the engine's command line
 ```
+
+The About dialog shows the commit a build was made from (`+`: with uncommitted changes).
 
 - The engine's tests use stand-ins for the network, the helpers and the audio server; nothing
   contacts Apple. `cargo test -p amui --test live -- --ignored` runs hand-made checks against the
@@ -170,12 +175,15 @@ Steps, each of which looks first and does only what is missing:
 7. **The lossless route** (x86_64 only): `tools/lossless/build.sh`, about 1 GB of downloads (pinned
    commits, checksummed toolchains: Android NDK, Go) and 3 GB on disk. Built again only after
    `tools/lossless` changed; while its service runs an update waits.
-8. **The doctor**: `target/release/amui doctor`.
+8. **The desktop entry**: `dev.amui.Music.desktop` and its icon under `~/.local/share`
+   (`applications/`, `icons/hicolor/scalable/apps/`), starting this folder's `./am-ui`. The file name
+   is the application id, by which desktops match the window to the entry.
+9. **The doctor**: `target/release/amui doctor`.
 
 Options: `--check` (step 1 and the doctor, nothing else), `--no-lossless` (skip step 7; the app then
-cannot sign in by itself), `--venv` and `--no-sink` (accepted for older instructions, no effect).
-Everything stays inside the repository folder (`var/`, `workspace/`, `target/`); `sudo` is never
-run.
+cannot sign in by itself), `--no-desktop-entry` (skip step 8), `--venv` and `--no-sink` (accepted for
+older instructions, no effect). Everything else stays inside the repository folder (`var/`,
+`workspace/`, `target/`); `sudo` is never run.
 
 ## Environment variables
 

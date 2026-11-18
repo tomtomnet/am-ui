@@ -140,7 +140,8 @@ pub fn show_about(parent: &impl IsA<gtk::Widget>) {
     let dialog = adw::AboutDialog::new();
     dialog.set_application_name("Music");
     dialog.set_application_icon(crate::APP_ID);
-    dialog.set_version(env!("CARGO_PKG_VERSION"));
-    dialog.set_comments("A native Apple Music client for the GNOME desktop, with Dolby Atmos and lossless playback.");
+    // the commit tells which build this is ("+": with changes that were not committed)
+    dialog.set_version(concat!(env!("CARGO_PKG_VERSION"), " (", env!("AMUI_BUILD"), ")"));
+    dialog.set_comments("A native Apple Music client for Linux, with Dolby Atmos and lossless playback.");
     dialog.present(Some(parent));
 }

@@ -2,9 +2,9 @@
 
 **Apple Music on Linux, natively, with Dolby Atmos and lossless audio.**
 
-am-ui is a native Apple Music player for GNOME, written in Rust with GTK 4 and libadwaita. It
-renders Dolby Atmos on your own computer (no Mac needed) and plays lossless audio where Apple
-offers it.
+am-ui is a native Apple Music player for the Linux desktop, written in Rust with GTK 4 and
+libadwaita. It renders Dolby Atmos on your own computer (no Mac needed) and plays lossless audio
+where Apple offers it.
 
 - Your library, Apple Music's catalog, search, radio stations and time-synced lyrics
 - Dolby Atmos rendered to 9.1.6 and folded down to stereo
@@ -14,8 +14,8 @@ offers it.
 
 ## Requirements
 
-- 64-bit x86 Linux with GNOME 49 or later (GTK 4.20, libadwaita 1.8): for example Fedora 43,
-  Ubuntu 25.10, Arch or openSUSE Tumbleweed
+- 64-bit x86 Linux with GTK 4.20 and libadwaita 1.8 or later, on GNOME, KDE Plasma or another
+  desktop: for example Fedora 43, Ubuntu 25.10, Arch or openSUSE Tumbleweed
 - PipeWire or PulseAudio
 - An Apple Music subscription
 - About 6 GB of disk space
@@ -28,9 +28,9 @@ cd am-ui
 ./setup.sh
 ```
 
-`setup.sh` checks your system and builds everything inside this folder; it never uses `sudo`. If
-something is missing, it prints the command that installs it on your distribution: run it, then
-`./setup.sh` again. On Fedora, all it can ask for is:
+`setup.sh` checks your system, builds everything inside this folder and adds am-ui to your
+application menu; it never uses `sudo`. If something is missing, it prints the command that installs
+it on your distribution: run it, then `./setup.sh` again. On Fedora, all it can ask for is:
 
 ```sh
 sudo dnf install gtk4-devel libadwaita-devel pulseaudio-libs-devel pkgconf-pkg-config gcc gcc-c++ \
@@ -42,7 +42,7 @@ To update later: `git pull && ./setup.sh`.
 ## Use
 
 ```sh
-./am-ui           # start the player
+./am-ui           # start the player (or open am-ui from your application menu)
 ./am-ui --demo    # try the interface with made-up music, no account needed
 ```
 
@@ -106,7 +106,8 @@ am-ui stands on the work of others:
   lossless decryption code.
 - [GTK](https://gtk.org), [libadwaita](https://gnome.pages.gitlab.gnome.org/libadwaita/),
   [gtk-rs](https://gtk-rs.org), [FFmpeg](https://ffmpeg.org), [PipeWire](https://pipewire.org),
-  [.NET](https://dotnet.microsoft.com), and the Rust crates listed in `Cargo.lock`.
+  [.NET](https://dotnet.microsoft.com), and the Rust crates listed in `Cargo.lock`. Most interface
+  icons come from GNOME's [Adwaita icon theme](https://gitlab.gnome.org/GNOME/adwaita-icon-theme).
 
 **Built with AI.** This project relied heavily on AI: most of its code, research and documentation
 were written by Anthropic's Claude (in Claude Code), directed, reviewed and tested by its author.

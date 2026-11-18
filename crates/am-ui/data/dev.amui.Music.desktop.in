@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=am-ui
+GenericName=Music Player
+Comment=Apple Music with Dolby Atmos and lossless audio
+Exec=@EXEC@
+Icon=dev.amui.Music
+Terminal=false
+Categories=AudioVideo;Audio;Player;GTK;
+Keywords=Apple Music;Dolby Atmos;lossless;music;player;
+StartupNotify=true
+StartupWMClass=dev.amui.Music
+SingleMainWindow=true

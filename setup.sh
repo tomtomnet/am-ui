@@ -5,6 +5,7 @@
 #   ./setup.sh --no-lossless  leave out the lossless route (saves about 1 GB of downloads and 3 GB on
 #                             disk). It also runs Apple's native sign-in, the app's only sign-in:
 #                             without it the app can use only a sign-in made earlier on this machine
+#   ./setup.sh --no-desktop-entry   do not add am-ui to the desktop's application menu
 #   ./setup.sh --check        change nothing: report what is there and what is missing
 #
 # Steps:
@@ -19,10 +20,12 @@
 #      its sources in this repository changed
 #   7. the lossless route (tools/lossless/build.sh), which is also what runs Apple's native sign-in.
 #      x86_64 computers only; skipped elsewhere. Built once, and again only after tools/lossless changed.
-#   8. the doctor (./am-ui cli doctor)
+#   8. the desktop entry and icon, so that am-ui is in the application menu
+#   9. the doctor (./am-ui cli doctor)
 #
-# Everything downloaded or built stays inside this folder (var/, workspace/, target/). Nothing here
-# signs in to Apple Music: do that afterwards with the app's Sign In button.
+# Everything downloaded or built stays inside this folder (var/, workspace/, target/); the only files
+# written elsewhere are the desktop entry and the icon under ~/.local/share. Nothing here signs in to
+# Apple Music: do that afterwards with the app's Sign In button.
 #
 # The first version of am-ui (Qt Quick and Python) needed PySide6 and a PipeWire sink; this one plays
 # through the desktop's sound server and needs neither. --venv and --no-sink, options of that time,
@@ -32,14 +35,15 @@ here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 cd "$here"
 var=${AMUI_VAR:-$here/var}
 
-check_only=0 want_lossless=auto
+check_only=0 want_lossless=auto want_desktop_entry=1
 for argument in "$@"; do
     case "$argument" in
         --check) check_only=1 ;;
         --lossless) want_lossless=1 ;;  # the default on x86_64; kept for older instructions
         --no-lossless) want_lossless=0 ;;
+        --no-desktop-entry) want_desktop_entry=0 ;;
         --venv|--no-sink) ;;            # options of the first version
-        -h|--help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) printf 'setup: unknown option %s (see ./setup.sh --help)\n' "$argument" >&2; exit 2 ;;
     esac
 done
@@ -167,8 +171,8 @@ if [ -n "$missing_packages" ]; then
         "$(install_command $(printf '%s\n' $missing_packages | sort -u | tr '\n' ' '))"
 fi
 if [ -n "$too_old" ]; then
-    printf '\n  Too old here:%s. The application is built for GNOME 49 or later (GTK 4.20,\n' "$too_old"
-    printf '  libadwaita 1.8), as in Fedora 43, Ubuntu 25.10, Arch or openSUSE Tumbleweed.\n'
+    printf '\n  Too old here:%s. The application needs GTK 4.20 and libadwaita 1.8 or later,\n' "$too_old"
+    printf '  as in Fedora 43, Ubuntu 25.10, Arch or openSUSE Tumbleweed.\n'
 fi
 if [ "$blocked" = 1 ]; then die "git is needed before anything else can be done."; fi
 
@@ -351,8 +355,43 @@ else
     esac
 fi
 
-# ----------------------------------------------------------------------------- 8. doctor
-step "8. Doctor"
+# ----------------------------------------------------------------------------- 8. desktop entry
+step "8. Desktop entry (application menu and icon)"
+# The window's id is dev.amui.Music: desktops match the window to this entry by that name.
+install_desktop_entry() {
+    local data_home=${XDG_DATA_HOME:-$HOME/.local/share} command=$here/am-ui entry
+    local applications=$data_home/applications icons=$data_home/icons/hicolor/scalable/apps
+    # the Exec key's quoting, for a folder with spaces or other special characters
+    case "$command" in
+        *[!A-Za-z0-9_./-]*)
+            command=${command//\\/\\\\}; command=${command//\"/\\\"}; command=${command//\`/\\\`}
+            command=${command//\$/\\\$}; command=\"${command//%/%%}\"
+            command=${command//\\/\\\\} ;;
+    esac
+    entry=$(<"$here/crates/am-ui/data/dev.amui.Music.desktop.in")
+    mkdir -p -- "$applications" "$icons"
+    printf '%s\n' "${entry//@EXEC@/"$command"}" >"$applications/dev.amui.Music.desktop.tmp"
+    mv -- "$applications/dev.amui.Music.desktop.tmp" "$applications/dev.amui.Music.desktop"
+    cp -- "$here/crates/am-ui/resources/icons/scalable/apps/dev.amui.Music.svg" "$icons/dev.amui.Music.svg"
+    # menus notice new entries by themselves on most desktops; these only make it immediate
+    if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database -q "$applications" 2>/dev/null || true; fi
+    if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -e "$data_home/icons/hicolor/index.theme" ]; then
+        gtk-update-icon-cache -q -t -f "$data_home/icons/hicolor" 2>/dev/null || true
+    fi
+    if command -v kbuildsycoca6 >/dev/null 2>&1; then kbuildsycoca6 >/dev/null 2>&1 || true; fi
+}
+if [ "$want_desktop_entry" = 0 ]; then
+    note "skipped (--no-desktop-entry)"
+elif [ ! -x "$app" ]; then
+    bad "desktop entry: the application is not built (step 3)"
+elif install_desktop_entry; then
+    ok "am-ui is in the application menu (~/.local/share/applications/dev.amui.Music.desktop)"
+else
+    bad "desktop entry: could not write it under ${XDG_DATA_HOME:-~/.local/share}"
+fi
+
+# ----------------------------------------------------------------------------- 9. doctor
+step "9. Doctor"
 doctor_status=0
 if [ -x "$engine" ]; then
     "$engine" doctor || doctor_status=$?
