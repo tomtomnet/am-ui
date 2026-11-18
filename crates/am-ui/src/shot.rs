@@ -22,8 +22,9 @@ pub fn save(window: &adw::ApplicationWindow, path: &std::path::Path) -> Result<(
     for popover in popovers {
         let Some(popup) = popover.surface().and_downcast::<gtk::gdk::Popup>() else { continue };
         let (own_x, own_y) = popover.surface_transform();
-        let x = popup.position_x() as f64 + own_x - window_x;
-        let y = popup.position_y() as f64 + own_y - window_y;
+        let (popup_x, popup_y) = popup_origin(&popup);
+        let x = popup_x + own_x - window_x;
+        let y = popup_y + own_y - window_y;
         snapshot.save();
         snapshot.translate(&graphene::Point::new(x as f32, y as f32));
         gtk::WidgetPaintable::new(Some(&popover)).snapshot(&snapshot, popover.width() as f64, popover.height() as f64);
@@ -34,6 +35,19 @@ pub fn save(window: &adw::ApplicationWindow, path: &std::path::Path) -> Result<(
     let bounds = graphene::Rect::new(0.0, 0.0, width * scale, height * scale);
     let texture = gsk::prelude::GskRendererExt::render_texture(&renderer, &node, Some(&bounds));
     texture.save_to_png(path).map_err(|error| error.to_string())
+}
+
+/// Where a popup is on its toplevel. A popup's own position is relative to its parent, which is
+/// another popup for a list opened inside a menu.
+fn popup_origin(popup: &gtk::gdk::Popup) -> (f64, f64) {
+    let (mut x, mut y) = (0.0, 0.0);
+    let mut current = Some(popup.clone());
+    while let Some(popup) = current {
+        x += popup.position_x() as f64;
+        y += popup.position_y() as f64;
+        current = popup.parent().and_downcast::<gtk::gdk::Popup>();
+    }
+    (x, y)
 }
 
 /// The popovers that are open under `widget` (menus, the sound settings).
