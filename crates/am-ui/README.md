@@ -28,11 +28,24 @@ and `--show view-options` opens the "View Options" menu of the page given with `
 `--queue` open those views, `--size WxH` sets the window size, `--text-scale FACTOR` makes text
 FACTOR times its size as the desktop's text scaling factor does (1.25, 1.5, 2) and
 `--screenshot FILE.png` draws the window into a file once it has loaded and quits.
-`tools/headless.sh` runs any of that inside a private headless compositor: nothing appears on the
-real display. Develop and check the user interface that way. The compositor takes its scale from
-the desktop's settings (`scaling-factor`, 2 on a desktop set to 200%); with
-`GSETTINGS_BACKEND=memory` in front of the command it runs at scale 1 (`-s 1920x1080`) and the
-application with GNOME's default font, and nothing of the desktop's settings is read or written.
+`tools/headless.sh` runs any of that inside a private headless compositor (mutter, or KWin's
+virtual backend where there is no mutter): nothing appears on the real display. Develop and check
+the user interface that way. Mutter takes its scale from the desktop's settings (`scaling-factor`,
+2 on a desktop set to 200%; with `GSETTINGS_BACKEND=memory` in front of the command it runs at scale
+1 and the application with GNOME's default font); KWin runs a monitor of 2560x1440 or more at scale
+2 and a smaller one at scale 1.
+
+Under KWin a run can also be clicked: `tools/fake-input.sh` builds `target/tools/fake-input`, which
+reads commands (`click X Y`, `right X Y`, `move X Y`, `press`, `release`, `scroll N`, `key CODE`,
+`sleep S`) from its input and drives a real pointer in the private compositor. With the window as
+large as the monitor, the coordinates are the window's:
+
+```sh
+crates/am-ui/tools/fake-input.sh
+crates/am-ui/tools/headless.sh -s 1400x850 bash -c '
+  AMUI_SHOT_DELAY_MS=4000 target/debug/am-ui --demo --page albums --size 1400x850 --screenshot /tmp/shot.png &
+  printf "sleep 1.5\nclick 1179 814\nsleep 3\n" | target/tools/fake-input; wait'
+```
 
 The demonstration has what the pages need to show: library albums `l.0` to `l.159` (every fifth
 with guest artists on some songs, `l.5` and every twentieth after it on several discs, every

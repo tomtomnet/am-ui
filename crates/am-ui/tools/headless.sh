@@ -16,6 +16,8 @@ if [ $# -eq 0 ]; then sed -n '2,10p' "$0"; exit 2; fi
 runtime=${AMUI_HEADLESS_DIR:-/tmp/amui-headless-$(id -u)}
 mkdir -p "$runtime" && chmod 700 "$runtime" || exit 1
 export XDG_RUNTIME_DIR=$runtime
+# lets tools/fake-input.c drive the pointer (KWin only, and only this private compositor)
+export KWIN_WAYLAND_NO_PERMISSION_CHECKS=1
 # GIO without gvfs: a gvfs daemon of the private session would leave its FUSE mount behind in the
 # runtime folder when the session ends
 export GIO_USE_VFS=local GVFS_DISABLE_FUSE=1
