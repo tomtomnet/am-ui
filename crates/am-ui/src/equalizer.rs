@@ -28,10 +28,6 @@ pub trait EqualizerService: Send + Sync + 'static {
     /// Remove a preset. An equalizer that is on has nothing to run without its active preset:
     /// removing that one applies a flat response.
     fn delete(&self, id: &str) -> Result<(), EqError>;
-    /// Whether the other application's presets are there to be imported.
-    fn can_import(&self) -> bool;
-    /// Copy those of the other application's presets that are not here yet; returns how many.
-    fn import(&self) -> Result<usize, EqError>;
     /// One line about what the output really runs now ("Sink: EQ on, 15 bands, -10.4 dB"), or
     /// nothing to say. Only reads. It goes away with the shared sink: see `live_note` below.
     fn live_note(&self) -> Option<String>;
@@ -160,25 +156,6 @@ const SAMPLES: [(&str, &str); 4] = [
     ),
 ];
 
-/// What "Import from the Old Clone" finds in the demonstration.
-const OTHER_APPLICATION: [(&str, &str); 2] = [
-    (
-        "Sample: Evening",
-        "Preamp: -2.5 dB\n\
-         Filter 1: ON LSC Fc 90 Hz Gain 2.5 dB Q 0.70\n\
-         Filter 2: ON PK Fc 400 Hz Gain -1.0 dB Q 1.00\n\
-         Filter 3: ON PK Fc 3500 Hz Gain -2.5 dB Q 1.20\n\
-         Filter 4: ON HSC Fc 8000 Hz Gain -4.0 dB Q 0.70",
-    ),
-    (
-        "Sample: Speech",
-        "Preamp: -4.0 dB\n\
-         Filter 1: ON LSC Fc 120 Hz Gain -6.0 dB Q 0.70\n\
-         Filter 2: ON PK Fc 2200 Hz Gain 4.0 dB Q 0.90\n\
-         Filter 3: ON HSC Fc 9000 Hz Gain -2.0 dB Q 0.70",
-    ),
-];
-
 /// What the demonstration starts as. The default is the equalizer in use; the others are the
 /// states the dialog has to show as well (`--show equalizer-off`, `--show equalizer-empty`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -204,12 +181,9 @@ impl DemoStart {
 }
 
 /// An equalizer in memory whose output is a stand-in that remembers what was applied: nothing
-/// is read from or written to a file, and no sink is reached. "Import from the Old Clone" finds
-/// two made-up presets, once.
+/// is read from or written to a file, and no sink is reached.
 pub struct DemoEqualizer {
     equalizer: Equalizer,
-    /// The other application's presets that were not imported yet.
-    other: Mutex<Vec<(&'static str, &'static str)>>,
 }
 
 impl DemoEqualizer {
@@ -232,7 +206,7 @@ impl DemoEqualizer {
                 let _ = switch(&equalizer, true);
             }
         }
-        DemoEqualizer { equalizer, other: Mutex::new(OTHER_APPLICATION.to_vec()) }
+        DemoEqualizer { equalizer }
     }
 }
 
@@ -263,18 +237,6 @@ impl EqualizerService for DemoEqualizer {
 
     fn delete(&self, id: &str) -> Result<(), EqError> {
         delete(&self.equalizer, id)
-    }
-
-    fn can_import(&self) -> bool {
-        true
-    }
-
-    fn import(&self) -> Result<usize, EqError> {
-        let found = std::mem::take(&mut *self.other.lock().unwrap());
-        for (name, text) in &found {
-            self.equalizer.add_preset(name, text, "bridge")?;
-        }
-        Ok(found.len())
     }
 
     fn live_note(&self) -> Option<String> {
@@ -314,7 +276,7 @@ mod tests {
 
     #[test]
     fn every_made_up_preset_is_a_preset() {
-        for (name, text) in SAMPLES.iter().chain(&OTHER_APPLICATION) {
+        for (name, text) in &SAMPLES {
             assert!(name.starts_with("Sample: "), "{name}");
             let (preamp, filters) = amui::eq::parse(text).unwrap_or_else(|error| panic!("{name}: {error}"));
             assert!(preamp < 0.0 && !filters.is_empty(), "{name}");
@@ -387,19 +349,6 @@ mod tests {
         assert_eq!(demo.rename("no-such-preset", "Sample: Nobody"), Err(EqError::Other("no such preset".to_string())));
         // none of that was applied
         assert_eq!(applied(&demo), (5, -4.5));
-    }
-
-    #[test]
-    fn the_other_application_s_presets_are_imported_once() {
-        let demo = DemoEqualizer::new(DemoStart::Empty);
-        assert!(demo.can_import());
-        assert_eq!(demo.import(), Ok(2));
-        let snapshot = demo.snapshot();
-        assert_eq!(names(&demo), ["Sample: Evening", "Sample: Speech"]);
-        assert!(snapshot.presets.iter().all(|preset| preset.source == "bridge"));
-        assert_eq!((snapshot.enabled, snapshot.active), (false, None));
-        assert_eq!(demo.import(), Ok(0));
-        assert_eq!(demo.snapshot().presets.len(), 2);
     }
 
     #[test]

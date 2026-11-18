@@ -54,14 +54,6 @@ impl EqualizerService for EngineEqualizer {
         equalizer::delete(&self.equalizer, id)
     }
 
-    fn can_import(&self) -> bool {
-        self.equalizer.bridge_path().is_some_and(|path| path.exists())
-    }
-
-    fn import(&self) -> Result<usize, EqError> {
-        self.equalizer.import_bridge_presets()
-    }
-
     fn live_note(&self) -> Option<String> {
         // the engine's own chain runs exactly what the equalizer says: nothing to report
         if self.equalizer.is_in_app() {

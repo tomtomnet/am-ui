@@ -1,6 +1,5 @@
 //! The Equalizer dialog: an on/off switch, the frequency response of the active preset, and the
-//! presets (make one active, rename, move, delete, paste a new one, import the other
-//! application's).
+//! presets (make one active, rename, move, delete, paste a new one).
 //!
 //! What the dialog shows is a `View` made on a worker thread from what is saved; the widgets are
 //! only ever set from one. The user's changes run one after the other, in the order they were
@@ -39,7 +38,7 @@ struct RowView {
     name: String,
     /// "15 filters · Preamp -10.4 dB".
     detail: String,
-    /// Where it is from: "Pasted", "From the old clone", "Sample".
+    /// Where it is from: "Pasted", "Sample"; empty when that says nothing.
     source: String,
     /// Its response, for the sparkline.
     spark: Vec<f32>,
@@ -54,7 +53,6 @@ struct View {
     rows: Vec<RowView>,
     /// The response of the active preset; empty without one.
     curve: Vec<f32>,
-    can_import: bool,
     /// The service's line about the sink (`EqualizerService::live_note`), when it has one.
     note: Option<String>,
 }
@@ -81,7 +79,7 @@ fn sentence(text: &str) -> String {
 fn source_label(source: &str) -> String {
     match source {
         "pasted" => "Pasted".to_string(),
-        "bridge" => "From the old clone".to_string(),
+        "bridge" => String::new(),
         "sample" => "Sample".to_string(),
         other => sentence(other),
     }
@@ -95,10 +93,10 @@ fn response(preset: &Preset, points: usize) -> Vec<f32> {
 impl View {
     /// What is saved now. For a worker thread: the state file is read.
     fn of(service: &dyn EqualizerService) -> View {
-        View::new(&service.snapshot(), service.can_import(), service.live_note())
+        View::new(&service.snapshot(), service.live_note())
     }
 
-    fn new(snapshot: &Snapshot, can_import: bool, note: Option<String>) -> View {
+    fn new(snapshot: &Snapshot, note: Option<String>) -> View {
         let active = snapshot.presets.iter().find(|preset| Some(&preset.id) == snapshot.active.as_ref());
         let row = |preset: &Preset| RowView {
             id: preset.id.clone(),
@@ -112,7 +110,6 @@ impl View {
             active: active.map(|preset| preset.id.clone()),
             rows: snapshot.presets.iter().map(row).collect(),
             curve: active.map(|preset| response(preset, CURVE_POINTS)).unwrap_or_default(),
-            can_import,
             note,
         }
     }
@@ -192,7 +189,6 @@ struct Panel {
     graph: EqGraph,
     /// The line about the sink under the graph; hidden when the service has nothing to say.
     note: gtk::Label,
-    import: gtk::Button,
     scroller: gtk::ScrolledWindow,
     list: gtk::ListBox,
     empty: adw::StatusPage,
@@ -315,7 +311,6 @@ impl Panel {
         self.graph.set_description(&view.description());
         self.note.set_visible(view.note.is_some());
         self.note.set_text(view.note.as_deref().unwrap_or_default());
-        self.import.set_visible(view.can_import);
 
         let same_rows = {
             let rows = self.rows.borrow();
@@ -336,11 +331,6 @@ impl Panel {
         }
         self.scroller.set_visible(!view.rows.is_empty());
         self.empty.set_visible(view.rows.is_empty());
-        self.empty.set_description(Some(if view.can_import {
-            "Paste one from AutoEQ, EqualizerAPO or PEQdB, or import those of the old clone."
-        } else {
-            "Paste one from AutoEQ, EqualizerAPO or PEQdB."
-        }));
         self.setting.set(false);
         self.view.replace(Some(view));
     }
@@ -365,18 +355,6 @@ impl Panel {
             let index =
                 order.iter().position(|known| *known == id).ok_or(EqError::Other("no such preset".to_string()))?;
             service.move_to(&id, if up { index.saturating_sub(1) } else { index + 1 }).map(|()| None)
-        });
-    }
-
-    fn import(self: &Rc<Self>) {
-        self.change("Import", |service| {
-            service.import().map(|count| {
-                Some(match count {
-                    0 => "Nothing new to import from the old clone".to_string(),
-                    1 => "Imported 1 preset from the old clone".to_string(),
-                    count => format!("Imported {count} presets from the old clone"),
-                })
-            })
         });
     }
 
@@ -486,6 +464,7 @@ impl Row {
         check.update_property(&[gtk::accessible::Property::Label("Active")]);
         row.add_suffix(&check);
         let source = gtk::Label::new(None);
+        source.set_visible(false);
         source.add_css_class("dim-label");
         source.add_css_class("caption");
         row.add_suffix(&source);
@@ -548,6 +527,7 @@ impl Row {
         self.row.set_title(&shown.name);
         self.row.set_subtitle(&shown.detail);
         self.source.set_text(&shown.source);
+        self.source.set_visible(!shown.source.is_empty());
         self.spark.set_curve(&shown.spark);
         self.spark.set_dimmed(!(active && on));
         self.check.set_visible(active);
@@ -897,13 +877,9 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
     heading.add_css_class("heading");
     heading.set_xalign(0.0);
     heading.set_hexpand(true);
-    let import = gtk::Button::with_label("Import from the Old Clone");
-    import.add_css_class("flat");
-    import.set_visible(false);
     let add = gtk::Button::with_label("Add Preset…");
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     bar.append(&heading);
-    bar.append(&import);
     bar.append(&add);
     bar.set_margin_top(8);
     bar.set_margin_start(22);
@@ -928,6 +904,7 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
     let empty = adw::StatusPage::new();
     empty.set_icon_name(Some("am-sound-symbolic"));
     empty.set_title("No Presets");
+    empty.set_description(Some("Paste one from AutoEQ, EqualizerAPO or PEQdB."));
     empty.add_css_class("compact");
     empty.set_vexpand(true);
     empty.set_visible(false);
@@ -961,7 +938,6 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
         spinner,
         graph,
         note,
-        import,
         scroller,
         list,
         empty,
@@ -981,12 +957,6 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
         {
             let on = switch.is_active();
             panel.change("Equalizer", move |service| service.set_enabled(on).map(|()| None));
-        }
-    });
-    let weak = Rc::downgrade(&panel);
-    panel.import.connect_clicked(move |_| {
-        if let Some(panel) = weak.upgrade() {
-            panel.import();
         }
     });
     let weak = Rc::downgrade(&panel);
@@ -1103,7 +1073,7 @@ mod tests {
         assert_eq!(detail(1, 3.0), "1 filter · Preamp +3.0 dB");
         assert_eq!(detail(0, -0.0), "No filters · Preamp +0.0 dB");
         assert_eq!(source_label("pasted"), "Pasted");
-        assert_eq!(source_label("bridge"), "From the old clone");
+        assert_eq!(source_label("bridge"), "", "where those came from is not shown");
         assert_eq!(source_label("sample"), "Sample");
         assert_eq!(source_label("elsewhere"), "Elsewhere");
         assert_eq!(sentence("line 3: not a Preamp or Filter line: x"), "Line 3: not a Preamp or Filter line: x");
@@ -1113,7 +1083,7 @@ mod tests {
     #[test]
     fn a_view_is_what_the_service_has() {
         let view = View::of(&DemoEqualizer::new(DemoStart::On));
-        assert!(view.enabled && view.can_import);
+        assert!(view.enabled);
         let names: Vec<&str> = view.rows.iter().map(|row| row.name.as_str()).collect();
         assert_eq!(names, ["Sample: Reference", "Sample: Warm", "Sample: Bright", "Sample: Detailed"]);
         assert_eq!(view.active_row().map(|row| row.name.as_str()), Some("Sample: Warm"));
@@ -1137,8 +1107,7 @@ mod tests {
     fn the_note_is_the_service_s_or_none() {
         let demo = DemoEqualizer::new(DemoStart::On);
         assert_eq!(View::of(&demo).note.as_deref(), Some("Sink: EQ on, 5 bands, -4.5 dB"));
-        let view = View::new(&demo.snapshot(), false, None);
-        assert_eq!((view.note, view.can_import), (None, false));
+        assert_eq!(View::new(&demo.snapshot(), None).note, None);
     }
 
     #[test]
