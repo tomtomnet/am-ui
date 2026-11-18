@@ -16,6 +16,7 @@ use gtk::{gdk, glib, graphene, gsk, pango};
 
 use crate::art::{self, Key};
 use crate::data::Item;
+use crate::widgets::cover::{blank_icon, draw_blank_icon};
 use crate::widgets::{font_layout, line_height, relative_font, scaled, with_alpha};
 
 pub const MIN_WIDTH: i32 = 132;
@@ -203,7 +204,12 @@ mod imp {
             snapshot.push_rounded_clip(&shape);
             match self.texture.borrow().as_ref() {
                 Some(texture) => snapshot.append_texture(texture, &bounds),
-                None => snapshot.append_color(&with_alpha(&colour, 0.08), &bounds),
+                None => {
+                    snapshot.append_color(&with_alpha(&colour, 0.08), &bounds);
+                    if let Some(name) = blank_icon(item) {
+                        draw_blank_icon(&*obj, snapshot, side, name, &colour);
+                    }
+                }
             }
             let zone = self.zone.get();
             if zone != Zone::None && !round {

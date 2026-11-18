@@ -15,6 +15,7 @@ use gtk::{gdk, glib, graphene, pango};
 
 use crate::data::Item;
 use crate::pages::detail::year;
+use crate::widgets::cover::blank_icon;
 use crate::widgets::thumb::Thumb;
 use crate::widgets::{font_serial, label_line, label_width};
 
@@ -260,10 +261,12 @@ impl ItemRow {
         imp.item.replace(item.cloned());
         let Some(item) = item else {
             imp.thumb.set_artwork(None);
+            imp.thumb.set_blank(None);
             return;
         };
         imp.thumb.set_round(matches!(item, Item::Artist(_)));
         imp.thumb.set_artwork(item.artwork());
+        imp.thumb.set_blank(blank_icon(item));
         imp.title.set_text(item.title());
         let (line, released) = texts(item);
         imp.line.set_text(&line);

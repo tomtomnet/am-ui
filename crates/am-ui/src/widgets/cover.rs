@@ -7,7 +7,7 @@
 
 use std::cell::{Cell, RefCell};
 
-use amui::types::Artwork;
+use amui::types::{Artwork, Item};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use gtk::{gdk, glib, graphene, gsk, pango};
@@ -24,6 +24,39 @@ pub enum Blank {
     Icon(&'static str),
     /// The initials of a name.
     Initials(String),
+}
+
+/// The icon that stands for the artwork of an album or a playlist that has none.
+pub fn blank_icon(item: &Item) -> Option<&'static str> {
+    match item {
+        Item::Album(album) if album.artwork.is_none() => Some("am-album-symbolic"),
+        Item::Playlist(playlist) if playlist.artwork.is_none() => Some("am-audio-x-generic-symbolic"),
+        _ => None,
+    }
+}
+
+/// A symbolic icon in the middle of a square of `side`, in place of artwork.
+pub fn draw_blank_icon(
+    widget: &impl IsA<gtk::Widget>,
+    snapshot: &gtk::Snapshot,
+    side: f32,
+    name: &str,
+    colour: &gdk::RGBA,
+) {
+    let widget = widget.as_ref();
+    let size = (side * 0.34).round();
+    let icon = gtk::IconTheme::for_display(&widget.display()).lookup_icon(
+        name,
+        &[],
+        size as i32,
+        widget.scale_factor(),
+        widget.direction(),
+        gtk::IconLookupFlags::FORCE_SYMBOLIC,
+    );
+    snapshot.save();
+    snapshot.translate(&graphene::Point::new((side - size) / 2.0, (side - size) / 2.0));
+    icon.snapshot_symbolic(snapshot, size as f64, size as f64, &[with_alpha(colour, 0.4)]);
+    snapshot.restore();
 }
 
 /// One artwork of a cover and what the loader has of it.
@@ -179,21 +212,7 @@ impl Cover {
                 snapshot.append_layout(&layout, &with_alpha(colour, 0.5));
                 snapshot.restore();
             }
-            Blank::Icon(name) => {
-                let size = (side * 0.34).round();
-                let icon = gtk::IconTheme::for_display(&self.display()).lookup_icon(
-                    name,
-                    &[],
-                    size as i32,
-                    self.scale_factor(),
-                    self.direction(),
-                    gtk::IconLookupFlags::FORCE_SYMBOLIC,
-                );
-                snapshot.save();
-                snapshot.translate(&graphene::Point::new((side - size) / 2.0, (side - size) / 2.0));
-                icon.snapshot_symbolic(snapshot, size as f64, size as f64, &[with_alpha(colour, 0.4)]);
-                snapshot.restore();
-            }
+            Blank::Icon(name) => draw_blank_icon(self, snapshot, side, name, colour),
         }
     }
 

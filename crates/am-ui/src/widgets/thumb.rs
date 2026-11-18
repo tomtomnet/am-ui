@@ -9,6 +9,7 @@ use gtk::subclass::prelude::*;
 use gtk::{gdk, glib, graphene, gsk};
 
 use crate::art::{self, Key};
+use crate::widgets::cover::draw_blank_icon;
 use crate::widgets::with_alpha;
 
 mod imp {
@@ -17,6 +18,8 @@ mod imp {
     #[derive(Default)]
     pub struct Thumb {
         pub artwork: RefCell<Option<Artwork>>,
+        /// The icon shown when there is no artwork at all.
+        pub blank: Cell<Option<&'static str>>,
         pub key: RefCell<Option<Key>>,
         pub texture: RefCell<Option<gdk::Texture>>,
         pub size: Cell<i32>,
@@ -87,7 +90,13 @@ mod imp {
             snapshot.push_rounded_clip(&shape);
             match self.texture.borrow().as_ref() {
                 Some(texture) => snapshot.append_texture(texture, &bounds),
-                None => snapshot.append_color(&with_alpha(&obj.color(), 0.08), &bounds),
+                None => {
+                    let colour = obj.color();
+                    snapshot.append_color(&with_alpha(&colour, 0.08), &bounds);
+                    if let Some(name) = self.blank.get().filter(|_| self.artwork.borrow().is_none()) {
+                        draw_blank_icon(&*obj, snapshot, side, name, &colour);
+                    }
+                }
             }
             snapshot.pop();
         }
@@ -128,6 +137,13 @@ impl Thumb {
 
     pub fn has_texture(&self) -> bool {
         self.imp().texture.borrow().is_some()
+    }
+
+    /// The icon to show when there is no artwork.
+    pub fn set_blank(&self, icon: Option<&'static str>) {
+        if self.imp().blank.replace(icon) != icon {
+            self.queue_draw();
+        }
     }
 
     pub fn set_artwork(&self, artwork: Option<&Artwork>) {
