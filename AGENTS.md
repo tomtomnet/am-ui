@@ -187,7 +187,6 @@ run.
 | `AMUI_CARGO`, `AMUI_DOTNET` | the `cargo` or `dotnet` the build scripts use |
 | `AMUI_RENDER_SCRIPT` | another render script instead of the patched Cavern |
 | `CAVERN_LAB_OPTIONS` | the renderer's switches instead of the engine's (see The renderer) |
-| `AMUI_BASS_MANAGE=on` | the extra bass feed into the LFE (off by default; the Sound menu's switch is saved too) |
 | `AMUI_LOSSLESS_MAX_RATE` | the highest ALAC sample rate fetched (48000 by default; the output runs at 48 kHz) |
 | `AMUI_SIGNIN=browser` | prefer a saved browser session over the native sign-in |
 | `AMUI_LANGUAGE` | the catalog's language (default: the desktop's `LC_ALL`, `LC_MESSAGES`, `LANG`) |
@@ -201,7 +200,7 @@ run.
 | `cache/media/<id>.atmos.m4a`, `.stereo.m4a`, `.lossless.m4a` | decrypted songs, least recently used go first beyond 2 GiB; `index.json` |
 | `cache/pcm/<id>.<kind>/` | renders and decodes (`atmos-916.f32le` with `render-summary.json`, or 2-channel PCM); the current, next and previous are kept |
 | `cache/art/` | artwork, 256 MiB |
-| `state/player.json` | the player's settings (mode, profile, volume, fallback, Sound Check, `bass_feed`, lossless, autoplay) |
+| `state/player.json` | the player's settings (mode, profile, volume, fallback, Sound Check, lossless, autoplay) |
 | `state/downmix.json`, `state/eq.json` | the downmix profile with its preamp, the equalizer |
 | `state/library/*.json` | snapshots of the library's lists (0600), shown at start-up |
 | `state/equivalents.json` | current catalog versions of withdrawn songs (30 days) |
@@ -261,9 +260,10 @@ progressively, about 25 times real time once warm. The engine's switches (`confi
 
 Against captures of Apple's own render through the same fold-down, the result correlates at 0.996
 with band levels within half a decibel (method and numbers: `research/cavern-artifact.md`,
-sections 6 and 9). `--bass-manage 0.35 90` is the optional bass feed. Every render records its
-generation (`cavern-lab-2`, `+bm` with the feed); a different one is rendered again. Playback of a
-render starts once one second is out and the renderer runs at three times real time or more.
+sections 6 and 9). Every render records its generation (`cavern-lab-2`); a different one is rendered
+again. One render process owns its folder under `cache/pcm/`: nothing else may delete or reuse the
+folder while it runs. Playback of a render starts once one second is out and the renderer runs at
+three times real time or more.
 
 **The lossless route** (`lossless.rs`, `wrapper.rs`, `tools/lossless`): Apple refuses Widevine
 licenses for ALAC, so lossless comes through WorldObservationLog's wrapper "lite": Apple's Android

@@ -73,8 +73,11 @@ pub fn build(on_select: impl Fn(Dest) + 'static) -> Sidebar {
     menu.append(Some("Preferences"), Some("app.preferences"));
     menu.append(Some("Keyboard Shortcuts"), Some("win.shortcuts"));
     menu.append(Some("About Music"), Some("app.about"));
-    let menu_button =
-        gtk::MenuButton::builder().icon_name("am-open-menu-symbolic").menu_model(&menu).tooltip_text("Main Menu").build();
+    let menu_button = gtk::MenuButton::builder()
+        .icon_name("am-open-menu-symbolic")
+        .menu_model(&menu)
+        .tooltip_text("Main Menu")
+        .build();
     let header = adw::HeaderBar::new();
     header.set_title_widget(Some(&adw::WindowTitle::new("Music", "")));
     header.pack_end(&menu_button);

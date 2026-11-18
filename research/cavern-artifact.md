@@ -320,8 +320,8 @@ Measured on song B with the engine's own downmix (`crates/amui/src/dsp.rs`, PEQd
 * Song A, the same comparison: with the feed, mid 0.874 below 150 Hz and 0.916 full band, band levels 1.42 dB rms
   off (a 6.9 dB hole at 100 Hz); with `--lfe-delay 577 --lfe-gain 1.41421356` and no feed, 0.998 below 150 Hz,
   0.996 full band, 0.43 dB rms.
-* The engine's default switches carry both options and its render generation is `cavern-lab-2`; the bass feed is
-  off by default (Sound menu, "Bass Management").
+* The engine's default switches carry both options and its render generation is `cavern-lab-2`. The bass feed is no
+  longer offered by the application (the probe keeps `--bass-manage` for experiments): the captures show none.
 
 ## Notes
 

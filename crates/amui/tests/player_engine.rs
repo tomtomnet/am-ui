@@ -182,7 +182,6 @@ fn settings_are_kept_in_the_file_the_python_engine_reads() {
     // sorted keys, one space of indentation, a final line end: `json.dump(..., indent=1, sort_keys=True)`
     let expected = [
         "{",
-        " \"bass_feed\": false,",
         " \"downmix_profile\": \"peqdb\",",
         " \"lossless\": true,",
         " \"mode\": \"atmos\",",
@@ -199,29 +198,18 @@ fn settings_are_kept_in_the_file_the_python_engine_reads() {
     // a file with things this engine does not know or does not accept
     let saved = json!({
         "mode": "stereo", "downmix_profile": "apple", "volume": 7, "stereo_fallback": "no", "repeat": "twice",
-        "shuffle": true, "sound_check": false, "bass_feed": true, "lossless": false, "later": [1, 2],
+        "shuffle": true, "sound_check": false, "lossless": false, "later": [1, 2],
     });
     fs::write(&path, saved.to_string()).unwrap();
-    assert!(!rig.engine.config.bass_manage());
     let again = Rig::on(rig.engine.clone());
     let snapshot = again.player.snapshot();
     assert_eq!((snapshot.mode, snapshot.volume, snapshot.shuffle), (AudioMode::Stereo, 1.0, true));
-    assert_eq!((snapshot.sound_check, snapshot.bass_manage, snapshot.lossless), (false, true, false));
+    assert_eq!((snapshot.sound_check, snapshot.lossless), (false, false));
     assert_eq!(snapshot.repeat, RepeatMode::Off, "an unknown repeat mode keeps the default");
     assert!(again.player.stereo_fallback(), "a value of another type keeps the default");
-    assert!(again.engine.config.bass_manage(), "the renderer's setting follows the saved one");
 
     // the profile the sink really runs is reported, whatever was saved
     again.wait("the live profile", |snapshot| snapshot.downmix_profile.as_deref() == Some("peqdb"));
-    // the switch saved under its old name, when the feed was on by default, is not taken over
-    again.player.shutdown();
-    fs::write(&path, json!({"bass_manage": true}).to_string()).unwrap();
-    let fresh = Arc::new(Engine::new());
-    fs::create_dir_all(&fresh.config.state_dir).unwrap();
-    fs::copy(&path, fresh.config.state_dir.join("player.json")).unwrap();
-    let old = Rig::on(fresh);
-    assert!(!old.player.snapshot().bass_manage);
-    assert!(!old.engine.config.bass_manage());
 }
 
 #[test]

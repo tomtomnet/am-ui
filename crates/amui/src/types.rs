@@ -633,8 +633,6 @@ pub struct PlaybackSnapshot {
     pub sound_check: bool,
     /// Sound Check trim applied to the current track in dB; `None` when unknown or off.
     pub track_gain_db: Option<f64>,
-    /// The lab renderer's bass-managed LFE feed.
-    pub bass_manage: bool,
     /// Prefer ALAC over AAC for 2-channel playback (the setting).
     pub lossless: bool,
     /// The lossless route is built and signed in (and not backing off).
@@ -678,7 +676,6 @@ impl Default for PlaybackSnapshot {
             underruns: 0,
             sound_check: true,
             track_gain_db: None,
-            bass_manage: true,
             lossless: true,
             lossless_available: false,
             autoplay: true,
@@ -814,7 +811,7 @@ mod tests {
         assert!(snapshot.autoplay);
         let json = snapshot.to_json();
         let keys = json.as_object().unwrap();
-        assert_eq!(keys.len(), 26, "{keys:?}");
+        assert_eq!(keys.len(), 25, "{keys:?}");
         assert!(["autoplay", "station", "playing_catalog_id"].iter().all(|key| !keys.contains_key(*key)));
     }
 }

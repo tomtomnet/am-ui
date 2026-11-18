@@ -106,7 +106,6 @@ pub(super) struct State {
     pub repeat: RepeatMode,
     pub shuffle: bool,
     pub sound_check: bool,
-    pub bass_manage: bool,
     pub lossless: bool,
     pub autoplay: bool,
     // queue
@@ -141,7 +140,7 @@ pub(super) struct State {
 }
 
 impl State {
-    pub fn new(config: &Config, output: Option<Arc<dyn Output>>) -> State {
+    pub fn new(output: Option<Arc<dyn Output>>) -> State {
         State {
             mode: AudioMode::Atmos,
             profile: None,
@@ -150,7 +149,6 @@ impl State {
             repeat: RepeatMode::Off,
             shuffle: false,
             sound_check: true,
-            bass_manage: config.bass_manage(),
             lossless: true,
             autoplay: true,
             queue: Vec::new(),
@@ -195,9 +193,9 @@ impl State {
     }
 
     /// The saved settings: mode, downmix_profile, volume, stereo_fallback, repeat, shuffle,
-    /// sound_check, bass_feed, lossless, autoplay. Anything missing or of another type keeps
+    /// sound_check, lossless, autoplay. Anything missing or of another type keeps
     /// its default.
-    pub fn restore_settings(&mut self, saved: &Map<String, Value>, config: &Config) {
+    pub fn restore_settings(&mut self, saved: &Map<String, Value>) {
         if let Some(mode) = saved.get("mode").and_then(Value::as_str).and_then(AudioMode::parse) {
             self.mode = mode;
         }
@@ -227,12 +225,6 @@ impl State {
         if let Some(enabled) = flag("sound_check") {
             self.sound_check = enabled;
         }
-        // the bass feed was saved as `bass_manage` while it was on by default, before the LFE was
-        // aligned: that value is not taken over
-        if let Some(enabled) = flag("bass_feed") {
-            self.bass_manage = enabled;
-            config.set_bass_manage(enabled);
-        }
         if let Some(enabled) = flag("lossless") {
             self.lossless = enabled;
         }
@@ -241,8 +233,7 @@ impl State {
         }
     }
 
-    /// What `player.json` holds. The Python engine reads the same file; it has no autoplay (written
-    /// only while it is off) and keeps its own bass feed under `bass_manage`.
+    /// What `player.json` holds. Autoplay is written only while it is off.
     pub fn settings(&self) -> Value {
         let mut settings = json!({
             "mode": self.mode.as_str(),
@@ -252,7 +243,6 @@ impl State {
             "repeat": self.repeat.as_str(),
             "shuffle": self.shuffle,
             "sound_check": self.sound_check,
-            "bass_feed": self.bass_manage,
             "lossless": self.lossless,
         });
         if !self.autoplay {
@@ -291,7 +281,6 @@ pub(super) enum Command {
     SetMode(AudioMode),
     SetStereoFallback(bool),
     SetSoundCheck(bool),
-    SetBassManage(bool),
     SetLossless(bool),
     SetDownmixProfile(String),
     SetPreamp(f64),
@@ -337,7 +326,6 @@ impl Command {
             Command::SetMode(_) => "set_mode",
             Command::SetStereoFallback(_) => "set_stereo_fallback",
             Command::SetSoundCheck(_) => "set_sound_check",
-            Command::SetBassManage(_) => "set_bass_manage",
             Command::SetLossless(_) => "set_lossless",
             Command::SetDownmixProfile(_) => "set_downmix_profile",
             Command::SetPreamp(_) => "set_preamp",
@@ -576,7 +564,6 @@ impl Shared {
             track_gain_db: loudness
                 .filter(|loudness| st.sound_check && loudness.known)
                 .map(|loudness| loudness.trim_db),
-            bass_manage: st.bass_manage,
             lossless: st.lossless,
             lossless_available,
             autoplay: st.autoplay,

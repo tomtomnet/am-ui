@@ -136,7 +136,6 @@ impl Worker {
             Command::SetMode(mode) => self.cmd_set_mode(mode),
             Command::SetStereoFallback(enabled) => self.cmd_set_stereo_fallback(enabled),
             Command::SetSoundCheck(enabled) => self.cmd_set_sound_check(enabled),
-            Command::SetBassManage(enabled) => self.cmd_set_bass_manage(enabled),
             Command::SetLossless(enabled) => self.cmd_set_lossless(enabled),
             Command::SetDownmixProfile(key) => self.cmd_set_downmix_profile(&key),
             Command::SetPreamp(db) => self.cmd_set_preamp(db),
@@ -903,68 +902,6 @@ impl Worker {
         self.switch_current_if_needed();
     }
 
-    fn cmd_set_bass_manage(&mut self, enabled: bool) {
-        {
-            let mut st = self.st();
-            if enabled == st.bass_manage {
-                return;
-            }
-            st.bass_manage = enabled;
-        }
-        // a new render generation: cached 16-channel renders are stale
-        self.shared.config.set_bass_manage(enabled);
-        self.shared.save_settings();
-        let generation = self.shared.config.render_generation();
-        self.log(&format!("bass management {} (render generation {generation})", if enabled { "on" } else { "off" }));
-        let (stale, output) = {
-            let mut st = self.st();
-            let playing = st.current.as_ref().map(|current| current.prepared.clone());
-            let mut stale = Vec::new();
-            st.prepared.retain(|(_, kind), prepared| {
-                if !kind.rendered() {
-                    return true;
-                }
-                // the playing one keeps running
-                if !playing.as_ref().is_some_and(|playing| Arc::ptr_eq(playing, prepared)) {
-                    stale.push(prepared.source.clone());
-                }
-                false
-            });
-            (stale, st.output.clone())
-        };
-        self.shared.stop_sessions(stale);
-        self.cancel_jobs(false, true, false);
-        self.next_prepared = None;
-        if let Some(output) = output {
-            output.set_next_source(None);
-        }
-        self.emit_state();
-        self.rerender_current();
-    }
-
-    /// Render the playing track again with the current renderer settings and swap it in.
-    fn rerender_current(&mut self) {
-        let playing = {
-            let st = self.st();
-            st.current.clone().filter(|current| st.active() && current.prepared.kind.rendered())
-        };
-        let Some(current) = playing else {
-            self.arm_prefetch();
-            return;
-        };
-        {
-            let mut st = self.st();
-            if let Some(job) = &st.switch_job {
-                job.cancel.set();
-            }
-            st.switching = true;
-        }
-        self.emit_state();
-        let job = self.start_job(Purpose::Rerender, &current.entry.track, current.prepared.kind, 0);
-        self.st().switch_job = Some(job);
-        self.arm_prefetch();
-    }
-
     fn cmd_set_sound_check(&mut self, enabled: bool) {
         let (changed, output) = {
             let mut st = self.st();
@@ -1534,7 +1471,7 @@ impl Worker {
         match purpose {
             Some(Purpose::Load) => self.finish_load(job, outcome),
             Some(Purpose::Prefetch) => self.finish_prefetch(job, outcome),
-            Some(Purpose::Switch | Purpose::Rerender) => self.finish_switch(job, outcome),
+            Some(Purpose::Switch) => self.finish_switch(job, outcome),
             None => {}
         }
     }

@@ -193,7 +193,7 @@ pub fn load_summary(out_dir: &Path) -> Result<Map<String, Value>, RenderError> {
 ///
 /// Renders made by an older or different renderer are then re-rendered instead of reused: the
 /// lab renderer's output differs audibly from the workspace probe's (JOC phase compensation,
-/// bass feed). `summary` is the directory's summary when the caller has just read it.
+/// LFE alignment). `summary` is the directory's summary when the caller has just read it.
 pub fn stamp_generation(config: &Config, out_dir: &Path, summary: Option<&Map<String, Value>>) {
     let path = out_dir.join(SUMMARY_NAME);
     let read;
@@ -1171,9 +1171,11 @@ done
         let written = fs::metadata(&session.summary_path).unwrap().ino();
         stamp_generation(&scratch.config, &out, None);
         assert_eq!(fs::metadata(&session.summary_path).unwrap().ino(), written);
-        scratch.config.set_bass_manage(true);
+        let older = fs::read_to_string(&session.summary_path).unwrap().replace("cavern-lab-2", "cavern-lab-1");
+        fs::write(&session.summary_path, older).unwrap();
+        assert_eq!(render_generation_of(&out).as_deref(), Some("cavern-lab-1"));
         stamp_generation(&scratch.config, &out, None);
-        assert_eq!(render_generation_of(&out).as_deref(), Some("cavern-lab-2+bm"));
+        assert_eq!(render_generation_of(&out).as_deref(), Some("cavern-lab-2"));
         assert_eq!(CompleteRender::new(&out).unwrap().total_frames(), Some(14400));
         stamp_generation(&scratch.config, &scratch.root.join("absent"), None); // nothing to stamp, no error
     }

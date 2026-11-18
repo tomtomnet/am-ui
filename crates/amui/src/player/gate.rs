@@ -1,6 +1,6 @@
 //! One Cavern process at a time, in the order current > next > previous.
 //!
-//! The render of the track the user wants to hear now (a load, switch or rerender job, or the
+//! The render of the track the user wants to hear now (a load or switch job, or the
 //! session `set_current()` names) runs at once and freezes whatever else renders (`pause()` of
 //! the session: SIGSTOP). A prefetch render waits while the *current* track still renders and
 //! otherwise freezes a stale render (a previous track's) to take its place. `poll()` and

@@ -903,7 +903,6 @@ fn events_have_the_python_payloads() {
         "underruns",
         "sound_check",
         "track_gain_db",
-        "bass_manage",
         "lossless",
         "lossless_available",
     ] {

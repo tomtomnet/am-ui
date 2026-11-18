@@ -412,10 +412,6 @@ impl Playback for DemoPlayback {
         self.inner.change(|view| view.sound_check = sound_check);
     }
 
-    fn set_bass_manage(&self, bass_manage: bool) {
-        self.inner.change(|view| view.bass_manage = bass_manage);
-    }
-
     fn set_stereo_fallback(&self, stereo_fallback: bool) {
         self.inner.change(|view| view.stereo_fallback = stereo_fallback);
     }

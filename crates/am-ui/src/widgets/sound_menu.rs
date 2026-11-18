@@ -47,7 +47,6 @@ pub fn button() -> gtk::MenuButton {
     let atmos = switch_row("Dolby Atmos", "Play the Atmos version when a song has one");
     let lossless = switch_row("Lossless", "Play the lossless version instead of AAC");
     let sound_check = switch_row("Sound Check", "Play every song at a similar loudness");
-    let bass = switch_row("Bass Management", "Extra bass from every channel, beyond Apple's render");
     let fallback = switch_row("Stereo When There Is No Atmos", "Otherwise such songs are skipped");
     let autoplay = switch_row("Autoplay", "Keep playing similar music when the queue ends");
 
@@ -79,7 +78,6 @@ pub fn button() -> gtk::MenuButton {
     let output = adw::PreferencesGroup::new();
     output.set_title("Output");
     output.add(&preamp_row);
-    output.add(&bass);
     output.add(&fallback);
     output.add(&crate::widgets::equalizer::menu_row());
     let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
@@ -112,11 +110,10 @@ pub fn button() -> gtk::MenuButton {
     // are not sent back to it
     let updating = std::rc::Rc::new(std::cell::Cell::new(false));
     let update = {
-        let (atmos, lossless, sound_check, bass, fallback, autoplay, preamp, updating) = (
+        let (atmos, lossless, sound_check, fallback, autoplay, preamp, updating) = (
             atmos.clone(),
             lossless.clone(),
             sound_check.clone(),
-            bass.clone(),
             fallback.clone(),
             autoplay.clone(),
             preamp.clone(),
@@ -136,7 +133,6 @@ pub fn button() -> gtk::MenuButton {
                 "Needs the lossless route and Apple's own sign-in"
             });
             sound_check.set_active(view.sound_check);
-            bass.set_active(view.bass_manage);
             fallback.set_active(view.stereo_fallback);
             autoplay.set_active(view.autoplay);
             for (profile, check) in profiles.iter().zip(&checks) {
@@ -166,7 +162,6 @@ pub fn button() -> gtk::MenuButton {
     send(&atmos, &updating, |playback, on| playback.set_mode(if on { AudioMode::Atmos } else { AudioMode::Stereo }));
     send(&lossless, &updating, |playback, on| playback.set_lossless(on));
     send(&sound_check, &updating, |playback, on| playback.set_sound_check(on));
-    send(&bass, &updating, |playback, on| playback.set_bass_manage(on));
     send(&fallback, &updating, |playback, on| playback.set_stereo_fallback(on));
     send(&autoplay, &updating, |playback, on| playback.set_autoplay(on));
     for (profile, (_, check)) in profiles.iter().zip(&profile_rows) {

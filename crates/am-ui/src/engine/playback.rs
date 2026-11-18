@@ -74,7 +74,6 @@ pub fn view_of(snapshot: &PlaybackSnapshot, stereo_fallback: bool) -> PlayerView
         sound_check: snapshot.sound_check,
         lossless: snapshot.lossless,
         lossless_available: snapshot.lossless_available,
-        bass_manage: snapshot.bass_manage,
         stereo_fallback,
         buffering: snapshot.buffering,
         autoplay: snapshot.autoplay,
@@ -283,10 +282,6 @@ impl Playback for EnginePlayback {
         self.player().set_sound_check(sound_check);
     }
 
-    fn set_bass_manage(&self, bass_manage: bool) {
-        self.player().set_bass_manage(bass_manage);
-    }
-
     fn set_stereo_fallback(&self, stereo_fallback: bool) {
         self.player().set_stereo_fallback(stereo_fallback);
     }
@@ -374,7 +369,6 @@ impl Playback for Unavailable {
     fn set_mode(&self, _: AudioMode) {}
     fn set_lossless(&self, _: bool) {}
     fn set_sound_check(&self, _: bool) {}
-    fn set_bass_manage(&self, _: bool) {}
     fn set_stereo_fallback(&self, _: bool) {}
 
     fn downmix_profiles(&self) -> Vec<Profile> {

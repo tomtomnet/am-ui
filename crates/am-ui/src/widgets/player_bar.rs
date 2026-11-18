@@ -290,7 +290,11 @@ pub fn build() -> gtk::Widget {
                 star.remove_css_class("favorite");
             }
             let playing = matches!(view.state, PlayerState::Playing | PlayerState::Loading);
-            play.set_icon_name(if playing { "am-media-playback-pause-symbolic" } else { "am-media-playback-start-symbolic" });
+            play.set_icon_name(if playing {
+                "am-media-playback-pause-symbolic"
+            } else {
+                "am-media-playback-start-symbolic"
+            });
             play.set_tooltip_text(Some(if playing { "Pause" } else { "Play" }));
             for button in [&play, &previous, &next] {
                 button.set_sensitive(track.is_some());

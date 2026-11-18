@@ -44,7 +44,6 @@ pub(super) enum Purpose {
     Load,
     Prefetch,
     Switch,
-    Rerender,
 }
 
 impl Purpose {
@@ -53,7 +52,6 @@ impl Purpose {
             Purpose::Load => "load",
             Purpose::Prefetch => "prefetch",
             Purpose::Switch => "switch",
-            Purpose::Rerender => "rerender",
         }
     }
 
@@ -115,13 +113,7 @@ impl Job {
     }
 
     fn run(self: &Arc<Self>, shared: &Arc<Shared>) {
-        let prepared = catch_unwind(AssertUnwindSafe(|| {
-            let prepared = shared.prepare(self)?;
-            if self.purpose() == Purpose::Rerender {
-                shared.wait_until_past_playhead(&prepared, &self.cancel);
-            }
-            Ok(prepared)
-        }));
+        let prepared = catch_unwind(AssertUnwindSafe(|| shared.prepare(self)));
         // reported to the worker, never raised on this thread
         let outcome = prepared.unwrap_or_else(|panic| Err(PlayerError::Other(panic_text(&*panic))));
         self.finish(shared, outcome);
@@ -529,23 +521,6 @@ impl Shared {
                 prepared.cache_key,
                 started.elapsed().as_secs_f64()
             ));
-        }
-    }
-
-    /// Job thread: let a replacement render get a few seconds past the live position before the
-    /// swap, so the listener never hears it starve (the old render keeps playing meanwhile).
-    fn wait_until_past_playhead(&self, prepared: &Arc<Prepared>, cancel: &Event) {
-        let source = &prepared.source;
-        let margin = 3 * u64::from(crate::config::SAMPLE_RATE);
-        while !cancel.is_set() {
-            let Some(output) = self.output() else { return };
-            if source.done() || source.error().is_some() {
-                return;
-            }
-            if source.frames_available() >= output.position_frames() + margin {
-                return;
-            }
-            thread::sleep(Duration::from_millis(200));
         }
     }
 }

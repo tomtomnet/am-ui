@@ -1067,9 +1067,9 @@ mod tests {
         let waiting = "not built: ./setup.sh (or tools/cavern-lab/build.sh); until then the workspace script renders";
         assert_eq!(scratch.row("patched Cavern (tools/cavern-lab)"), ("absent", waiting.to_string()));
         assert_eq!(scratch.row("render script in use"), ("ok", scratch.shown(&config.workspace_render_script)));
-        // built, with the bass feed switched on: its generation
-        let built = Scratch::with(&[("AMUI_BASS_MANAGE", "on")], build_engine);
-        assert_eq!(built.row("patched Cavern (tools/cavern-lab)"), ("ok", "generation cavern-lab-2+bm".to_string()));
+        // built: its generation
+        let built = Scratch::with(&[], build_engine);
+        assert_eq!(built.row("patched Cavern (tools/cavern-lab)"), ("ok", "generation cavern-lab-2".to_string()));
         // a script named in the environment that is not there
         let named = Scratch::with(&[("AMUI_RENDER_SCRIPT", "/nowhere/render.sh")], |_| {});
         assert_eq!(named.row("render script in use"), ("MISSING", "/nowhere/render.sh".to_string()));

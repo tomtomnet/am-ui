@@ -35,6 +35,14 @@ using Cavern.Format.Decoders;
 using Cavern.Format.Decoders.EnhancedAC3;
 using Cavern.Format.Renderers;
 
+// A failure ends the render with a line in its log and an exit status the engine reports: an
+// unhandled exception would abort the process and leave a core dump.
+AppDomain.CurrentDomain.UnhandledException += (_, failure) => {
+    Exception? error = failure.ExceptionObject as Exception;
+    Console.Error.WriteLine($"render failed: {error?.GetType().Name}: {error?.Message}");
+    Environment.Exit(1);
+};
+
 CultureInfo inv = CultureInfo.InvariantCulture;
 LabOptions opts = new();
 List<string> positional = new();

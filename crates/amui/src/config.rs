@@ -23,7 +23,6 @@ use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::RwLock;
 
 use crate::util;
 
@@ -76,21 +75,10 @@ pub const ART_CACHE_BYTES: u64 = 256 * 1024 * 1024;
 /// of the bass from 0.54 to 0.998 and the band levels within 0.2 dB.
 pub const LAB_FIXES: &str =
     "--joc-timeslot-fix --joc-interp-fix --surround-phase -1 --lfe-gain 1.41421356 --lfe-delay 577";
-/// Bass management: the low frequencies of every channel into the LFE channel as well. Apple's
-/// render has no such feed (off by default); before the LFE was aligned, it made up for the bass
-/// that the early LFE cancelled.
-pub const LAB_BASS_FEED: &str = "--bass-manage 0.35 90";
 
 /// A file every workspace with the engine tools has.
 pub const WORKSPACE_MARKER: &str = "tools/music-web-probe.py";
 const DRM_HELPER_PATH: &str = "builds/music-downloader/amdl-linux-target/release/amdl-linux-probe";
-
-#[derive(Debug, Clone)]
-struct RenderOptions {
-    bass_manage: bool,
-    lab_render_options: String,
-    render_generation: String,
-}
 
 /// Every path the engine uses, resolved once at start-up.
 #[derive(Debug)]
@@ -123,8 +111,7 @@ pub struct Config {
     pub lab_render_script: PathBuf,
     pub lab_probe_dll: PathBuf,
     pub render_script: PathBuf,
-    generation_base: String,
-    render: RwLock<RenderOptions>,
+    render_generation: String,
 
     // --- private runtime data (created 0700 by ensure_dirs())
     /// Decrypted .m4a files, one per catalog song id and variant.
@@ -232,13 +219,11 @@ impl Config {
             // nothing built yet: workspace_ready() and the doctor say "run ./setup.sh"
             _ => (lab_render_script.clone(), "cavern-lab-2"),
         };
-        let bass_manage =
-            matches!(get("AMUI_BASS_MANAGE").unwrap_or("off").to_lowercase().as_str(), "on" | "1" | "yes" | "true");
 
         let state_dir = var.join("state");
         let lossless_port = get("LOSSLESS_PORT").and_then(|v| v.parse().ok()).unwrap_or(12351);
         let lossless_build_dir = var.join("build/lossless");
-        let config = Config {
+        Config {
             stage: stage.clone(),
             token_file: web_session_dir.join("media-user-token"),
             session_status_file: web_session_dir.join("session-status.json"),
@@ -249,12 +234,7 @@ impl Config {
             lab_render_script,
             lab_probe_dll,
             render_script,
-            generation_base: generation_base.to_string(),
-            render: RwLock::new(RenderOptions {
-                bass_manage,
-                lab_render_options: String::new(),
-                render_generation: String::new(),
-            }),
+            render_generation: generation_base.to_string(),
             media_cache_dir: var.join("cache/media"),
             pcm_cache_dir: var.join("cache/pcm"),
             art_cache_dir: var.join("cache/art"),
@@ -281,39 +261,19 @@ impl Config {
             workspace,
             workspace_source,
             var,
-        };
-        config.set_bass_manage(bass_manage);
-        config
-    }
-
-    /// Switch the bass-managed LFE feed (lab renderer only) at run time; recomputes the render
-    /// options and the generation string, so cached renders of the other setting are re-rendered.
-    pub fn set_bass_manage(&self, enabled: bool) {
-        let lab = self.render_script == self.lab_render_script;
-        let mut render = self.render.write().unwrap();
-        render.bass_manage = enabled;
-        render.lab_render_options =
-            if enabled { format!("{LAB_FIXES} {LAB_BASS_FEED}") } else { LAB_FIXES.to_string() };
-        render.render_generation = format!("{}{}", self.generation_base, if lab && enabled { "+bm" } else { "" });
-    }
-
-    pub fn bass_manage(&self) -> bool {
-        self.render.read().unwrap().bass_manage
-    }
-
-    /// Options passed to the lab renderer: the recommended ones for the current bass-management
-    /// setting, or the override from the environment.
-    pub fn lab_render_options(&self) -> String {
-        match &self.lab_options_override {
-            Some(options) => options.clone(),
-            None => self.render.read().unwrap().lab_render_options.clone(),
         }
+    }
+
+    /// Options passed to the lab renderer: the recommended ones, or the override from the
+    /// environment.
+    pub fn lab_render_options(&self) -> String {
+        self.lab_options_override.clone().unwrap_or_else(|| LAB_FIXES.to_string())
     }
 
     /// Renders in the PCM cache carry the generation that produced them; a different one is
     /// re-rendered.
     pub fn render_generation(&self) -> String {
-        self.render.read().unwrap().render_generation.clone()
+        self.render_generation.clone()
     }
 
     /// Run the wrapper control helper as `program` with `args` before its command (`amui
@@ -573,7 +533,6 @@ mod tests {
                 ("LOSSLESS_PORT", "12399"),
                 ("AMUI_LOSSLESS_MAX_RATE", "192000"),
                 ("AMUI_SIGNIN", " Browser "),
-                ("AMUI_BASS_MANAGE", "on"),
             ],
         );
         assert_eq!(config.var, data);
@@ -581,7 +540,6 @@ mod tests {
         assert_eq!((config.lossless_port, config.lossless_url.as_str()), (12399, "http://127.0.0.1:12399"));
         assert_eq!(config.lossless_max_rate, 192_000);
         assert!(config.prefer_browser_signin);
-        assert!(config.bass_manage());
     }
 
     #[test]
@@ -632,28 +590,22 @@ mod tests {
         let scratch = Scratch::new();
         let config = config_in(&scratch, &[("CAVERN_LAB_OPTIONS", "--surround-phase 1")]);
         assert_eq!(config.lab_render_options(), "--surround-phase 1");
-        config.set_bass_manage(true);
-        assert_eq!(config.lab_render_options(), "--surround-phase 1");
         // an empty value is an override too: no switches
         let config = config_in(&scratch, &[("CAVERN_LAB_OPTIONS", "")]);
         assert_eq!(config.lab_render_options(), "");
     }
 
     #[test]
-    fn bass_management_changes_the_render_generation() {
+    fn the_renderer_decides_the_render_generation() {
         let scratch = Scratch::new();
         let config = config_in(&scratch, &[]);
         assert_eq!(config.render_script, config.lab_render_script);
-        assert!(!config.bass_manage());
         assert_eq!(config.render_generation(), "cavern-lab-2");
         assert_eq!(config.lab_render_options(), LAB_FIXES);
-        config.set_bass_manage(true);
-        assert_eq!(config.render_generation(), "cavern-lab-2+bm");
-        assert_eq!(config.lab_render_options(), format!("{LAB_FIXES} {LAB_BASS_FEED}"));
 
         let custom = config_in(&scratch, &[("AMUI_RENDER_SCRIPT", "/opt/render.sh")]);
         assert_eq!(custom.render_script, PathBuf::from("/opt/render.sh"));
-        assert_eq!(custom.render_generation(), "custom"); // only the lab renderer has the feed
+        assert_eq!(custom.render_generation(), "custom");
     }
 
     #[test]

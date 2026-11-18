@@ -43,7 +43,6 @@ pub struct PlayerView {
     pub lossless: bool,
     /// Lossless can be chosen on this machine.
     pub lossless_available: bool,
-    pub bass_manage: bool,
     pub stereo_fallback: bool,
     /// The output ran out of audio and waits for more.
     pub buffering: bool,
@@ -77,7 +76,6 @@ impl Default for PlayerView {
             sound_check: true,
             lossless: false,
             lossless_available: false,
-            bass_manage: true,
             stereo_fallback: true,
             buffering: false,
             autoplay: true,
@@ -132,7 +130,6 @@ pub trait Playback {
     fn set_mode(&self, mode: AudioMode);
     fn set_lossless(&self, lossless: bool);
     fn set_sound_check(&self, sound_check: bool);
-    fn set_bass_manage(&self, bass_manage: bool);
     fn set_stereo_fallback(&self, stereo_fallback: bool);
     fn downmix_profiles(&self) -> Vec<Profile>;
     fn set_downmix_profile(&self, key: &str);

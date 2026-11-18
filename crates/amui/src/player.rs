@@ -50,7 +50,7 @@
 //!   attenuation toward -16 LUFS, never a boost.
 //! * Diagnostics go to the playback log; `dump_recent()` saves the last 30 s of the written
 //!   stream as a WAV.
-//! * Settings (mode, profile, volume, fallback, repeat, shuffle, sound_check, bass_manage,
+//! * Settings (mode, profile, volume, fallback, repeat, shuffle, sound_check,
 //!   lossless, autoplay) persist in `<state folder>/player.json` (0600) and are restored at
 //!   construction. No program is started at construction: the output starts on the first play,
 //!   the lossless service on the first lossless song (and is stopped at shutdown when this
@@ -65,7 +65,7 @@
 //!   [`PlayerOptions`]. Construction can fail (the data folders, the worker thread).
 //! * Events are [`PlayerEvent`] values; `name()` and `to_json()` give the event name and the
 //!   payload the Python listener gets. The snapshot is [`PlaybackSnapshot`], which has the fields
-//!   of Python's subclass (buffering, underruns, sound_check, track_gain_db, bass_manage,
+//!   of Python's subclass (buffering, underruns, sound_check, track_gain_db,
 //!   lossless, lossless_available), and three that are not part of its `to_json()` (autoplay,
 //!   station, playing_catalog_id).
 //! * The seams are traits: [`Pipeline`] (Python's class of that name), [`Output`] and
@@ -105,7 +105,7 @@
 //!   value was already there) and the worker hears of a value before it starts the track.
 //! * A source that is prepared again is measured again: the measurement registered for an
 //!   earlier source of the same cache entry is cancelled. In Python a measurement that never
-//!   reported (its render was stopped when bass management changed) kept the new source from
+//!   reported (its render had been stopped) kept the new source from
 //!   being measured, so it played without its Sound Check trim.
 //! * The sources outside {previous, current, next} are taken out in one step after a transition;
 //!   in Python a source that a job registered during that step was lost to the bookkeeping.
@@ -495,9 +495,9 @@ impl Player {
         let media_cache = options.media_cache.unwrap_or_else(|| Arc::new(MediaCache::new(config.clone())));
         let pcm_cache = options.pcm_cache.unwrap_or_else(|| Arc::new(PcmCache::new(&config)));
         let state_path = options.state_path.unwrap_or_else(|| config.state_dir.join(STATE_FILE));
-        let mut state = State::new(&config, options.output);
+        let mut state = State::new(options.output);
         if let Some(saved) = util::read_json_object(&state_path) {
-            state.restore_settings(&saved, &config);
+            state.restore_settings(&saved);
         }
         let equivalents = Equivalents::load(config.state_dir.join(EQUIVALENTS_FILE));
         let (sender, commands) = mpsc::channel();
@@ -669,14 +669,6 @@ impl Player {
         self.post(Command::SetSoundCheck(enabled));
     }
 
-    /// The lab renderer's bass-managed LFE feed (a 90 Hz low-pass of the main channels at -9 dB
-    /// added to LFE). Persisted. Changing it re-renders the playing track in the background and
-    /// swaps it in at the current position once the new render has passed the playhead;
-    /// following tracks render with the new setting.
-    pub fn set_bass_manage(&self, enabled: bool) {
-        self.post(Command::SetBassManage(enabled));
-    }
-
     /// Prefer the ALAC rendition over the AAC one whenever 2-channel audio plays: Dolby Atmos
     /// off, or a song without an Atmos version. Default on; it only takes effect while the
     /// lossless route is built and signed in (`snapshot.lossless_available`). Persisted; applies
@@ -731,10 +723,6 @@ impl Player {
 
     pub fn sound_check(&self) -> bool {
         lock(&self.shared.state).sound_check
-    }
-
-    pub fn bass_manage(&self) -> bool {
-        lock(&self.shared.state).bass_manage
     }
 
     pub fn autoplay(&self) -> bool {
