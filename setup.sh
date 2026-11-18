@@ -368,6 +368,18 @@ fi
 # ----------------------------------------------------------------------------- 8. desktop entry
 step "8. Desktop entry (application menu and icon)"
 # The window's id is dev.amui.Music: desktops match the window to this entry by that name.
+refresh_kde() {
+    command -v kbuildsycoca6 >/dev/null 2>&1 || return 0
+    kbuildsycoca6 >/dev/null 2>&1 || true
+    # a running Plasma has read its icon folders when it started: it reads them again when told
+    if command -v gdbus >/dev/null 2>&1; then
+        timeout 5 gdbus emit --session --object-path /KIconLoader \
+            --signal org.kde.KIconLoader.iconChanged 0 >/dev/null 2>&1 || true
+    elif command -v dbus-send >/dev/null 2>&1; then
+        timeout 5 dbus-send --session --type=signal /KIconLoader \
+            org.kde.KIconLoader.iconChanged int32:0 >/dev/null 2>&1 || true
+    fi
+}
 install_desktop_entry() {
     local data_home=${XDG_DATA_HOME:-$HOME/.local/share} command=$here/am-ui entry
     local applications=$data_home/applications icons=$data_home/icons/hicolor/scalable/apps
@@ -387,7 +399,7 @@ install_desktop_entry() {
     if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -e "$data_home/icons/hicolor/index.theme" ]; then
         gtk-update-icon-cache -q -t -f "$data_home/icons/hicolor" 2>/dev/null || true
     fi
-    if command -v kbuildsycoca6 >/dev/null 2>&1; then kbuildsycoca6 >/dev/null 2>&1 || true; fi
+    refresh_kde
 }
 if [ "$want_desktop_entry" = 0 ]; then
     note "skipped (--no-desktop-entry)"

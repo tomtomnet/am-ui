@@ -98,6 +98,19 @@ if [ -d "$var/wrapper" ]; then
     if [ "$status" = 1 ]; then die "the lossless service did not stop: nothing was removed"; fi
 fi
 
+refresh_kde() {
+    command -v kbuildsycoca6 >/dev/null 2>&1 || return 0
+    kbuildsycoca6 >/dev/null 2>&1 || true
+    # a running Plasma has read its icon folders when it started: it reads them again when told
+    if command -v gdbus >/dev/null 2>&1; then
+        timeout 5 gdbus emit --session --object-path /KIconLoader \
+            --signal org.kde.KIconLoader.iconChanged 0 >/dev/null 2>&1 || true
+    elif command -v dbus-send >/dev/null 2>&1; then
+        timeout 5 dbus-send --session --type=signal /KIconLoader \
+            org.kde.KIconLoader.iconChanged int32:0 >/dev/null 2>&1 || true
+    fi
+}
+
 # The entry names the folder it starts: another copy's stays. (A folder with characters the entry
 # has to escape is not compared.)
 entry_is_ours() {
@@ -111,7 +124,7 @@ else
     if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -e "$data_home/icons/hicolor/index.theme" ]; then
         gtk-update-icon-cache -q -t -f "$data_home/icons/hicolor" 2>/dev/null || true
     fi
-    if command -v kbuildsycoca6 >/dev/null 2>&1; then kbuildsycoca6 >/dev/null 2>&1 || true; fi
+    refresh_kde
 fi
 
 cavern=$here/tools/cavern-lab
