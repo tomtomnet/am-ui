@@ -377,11 +377,12 @@ impl MusicApi {
 
     /// `GET /v1/catalog/{sf}/stations/{id}`.
     pub fn station(&self, station_id: &str) -> Result<Station, ApiError> {
-        let storefront = self.catalog_storefront()?;
-        let path = format!("/v1/catalog/{storefront}/stations/{}", path_id(station_id)?);
-        let body = self.get(&path, &[("l", self.language(&storefront))], Some(TTL_CATALOG))?;
-        let station = data(&body)?.into_iter().find_map(parse_station);
-        station.ok_or_else(|| failed("Apple returned no station"))
+        self.shown(|storefront| {
+            let path = format!("/v1/catalog/{storefront}/stations/{}", path_id(station_id)?);
+            let body = self.get(&path, &[("l", self.language(storefront))], Some(TTL_CATALOG))?;
+            let station = data(&body)?.into_iter().find_map(parse_station);
+            station.ok_or_else(|| failed("Apple returned no station"))
+        })
     }
 
     /// The next songs of a station: `POST /v1/me/stations/next-tracks/{id}`. Every call moves the
@@ -420,13 +421,15 @@ impl MusicApi {
     /// longer serves (a library song added from a release that was withdrawn and published
     /// again): a song with the same title and artist whose length differs by at most
     /// [`EQUIVALENT_DURATION_MS`], from the same album and with the same content rating when
-    /// there is a choice. `None` when the catalog has no such song.
+    /// there is a choice. `None` when the catalog has no such song. The song has to play for the
+    /// account: it is looked for in the account's storefront, whatever region the catalog shows.
     pub fn equivalent_song(&self, track: &Track) -> Result<Option<Track>, ApiError> {
         let (name, artist) = (folded(&track.name), folded(&track.artist));
         if name.is_empty() || artist.is_empty() {
             return Ok(None);
         }
-        let found = self.search_catalog(&format!("{} {}", track.name, track.artist), EQUIVALENT_CANDIDATES)?;
+        let term = format!("{} {}", track.name, track.artist);
+        let found = self.search_in(Some(&self.storefront()?), &term, EQUIVALENT_CANDIDATES)?;
         let album = folded(&track.album);
         let apart = |song: &Track| match (song.duration_ms, track.duration_ms) {
             (Some(theirs), Some(ours)) => (theirs - ours).abs(),

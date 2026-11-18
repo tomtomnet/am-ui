@@ -633,10 +633,24 @@ mod storefront_override_test {
         assert!(!t.tmp.join("storefront-override.json").exists());
     }
 
+    /// The catalog's paths that were asked for, in order.
+    fn catalog_paths(t: &MutationTestCase) -> Vec<String> {
+        let calls = t.fake.calls();
+        calls.into_iter().map(|(_, path, ..)| path).filter(|path| path.starts_with("/v1/catalog/")).collect()
+    }
+
+    fn cat_album() -> Value {
+        json!({"id": "1000000001", "type": "albums", "attributes": {"name": "Synthetic Album", "artistName": "Synth Artist"}})
+    }
+
+    fn cat_artist() -> Value {
+        json!({"id": "2000000001", "type": "artists", "attributes": {"name": "Synth Artist"}})
+    }
+
     #[test]
-    fn override_applies_to_catalog_search_charts_and_lyrics() {
+    fn override_applies_to_what_the_catalog_shows() {
         let t = MutationTestCase::new();
-        t.fake.route("GET", "/v1/catalog/jp/songs/1000000002", json!({"data": [cat_song()]}));
+        t.fake.route("GET", "/v1/catalog/jp/albums/1000000001", json!({"data": [cat_album()]}));
         t.fake.route("GET", "/v1/catalog/jp/search", json!({"results": {"songs": {"data": [cat_song()]}}}));
         t.fake.route(
             "GET",
@@ -649,23 +663,81 @@ mod storefront_override_test {
             ("jp", Some("jp"))
         );
         assert_eq!(t.api.storefront().unwrap(), "us"); // the account's storefront is untouched
-        assert_eq!(t.api.catalog_song("1000000002").unwrap().catalog_id.as_deref(), Some("1000000002"));
+        assert_eq!(t.api.catalog_album("1000000001").unwrap().0.name, "Synthetic Album");
         assert_eq!(t.api.search_catalog("synthetic", 10).unwrap().songs.len(), 1);
         assert_eq!(t.api.charts().unwrap().titles["songs"].as_deref(), Some("Top"));
-        assert_eq!(t.api.lyrics("1000000002").unwrap(), None); // the fake has no lyrics -> None, but the path was /jp/
-        let calls = t.fake.calls();
-        let paths: Vec<&str> =
-            calls.iter().map(|(_, path, ..)| path.as_str()).filter(|path| path.starts_with("/v1/catalog/")).collect();
         assert_eq!(
-            paths,
-            [
-                "/v1/catalog/jp/songs/1000000002",
-                "/v1/catalog/jp/search",
-                "/v1/catalog/jp/charts",
-                "/v1/catalog/jp/songs/1000000002"
-            ]
+            catalog_paths(&t),
+            ["/v1/catalog/jp/albums/1000000001", "/v1/catalog/jp/search", "/v1/catalog/jp/charts"]
         );
         assert_eq!(t.fake.mutations(), []); // the override never talks to Apple
+    }
+
+    #[test]
+    fn what_concerns_a_song_of_the_account_is_asked_in_its_storefront() {
+        let t = MutationTestCase::new();
+        t.fake.route("GET", "/v1/catalog/us/songs/1000000002", json!({"data": [cat_song()]}));
+        t.api.set_catalog_storefront(Some("jp")).unwrap();
+        assert_eq!(t.api.catalog_song("1000000002").unwrap().name, "Synthetic Song");
+        assert_eq!(t.api.lyrics("1000000002").unwrap(), None); // the fake has no lyrics
+        assert_eq!(catalog_paths(&t), ["/v1/catalog/us/songs/1000000002", "/v1/catalog/us/songs/1000000002"]);
+        // the same without a chosen region
+        let t = MutationTestCase::new();
+        t.fake.route("GET", "/v1/catalog/us/songs/1000000002", json!({"data": [cat_song()]}));
+        assert_eq!(t.api.catalog_song("1000000002").unwrap().name, "Synthetic Song");
+        assert_eq!(catalog_paths(&t), ["/v1/catalog/us/songs/1000000002"]);
+    }
+
+    #[test]
+    fn a_song_only_the_chosen_region_knows_is_found_there() {
+        let t = MutationTestCase::new();
+        t.fake.route("GET", "/v1/catalog/jp/songs/1000000002", json!({"data": [cat_song()]}));
+        t.api.set_catalog_storefront(Some("jp")).unwrap();
+        assert_eq!(t.api.catalog_song("1000000002").unwrap().catalog_id.as_deref(), Some("1000000002"));
+        assert_eq!(catalog_paths(&t), ["/v1/catalog/us/songs/1000000002", "/v1/catalog/jp/songs/1000000002"]);
+        // a song neither of them knows stays not found
+        assert!(matches!(t.api.catalog_song("1000000404"), Err(ApiError::Web(WebError::NotFound(_)))));
+        assert_eq!(t.api.lyrics("1000000404").unwrap(), None);
+    }
+
+    #[test]
+    fn a_page_the_chosen_region_does_not_have_comes_from_the_account_s_storefront() {
+        // "Go to Album" and "Go to Artist" for a song of the account while another region is shown
+        let t = MutationTestCase::new();
+        t.fake.route("GET", "/v1/catalog/us/albums/1000000001", json!({"data": [cat_album()]}));
+        t.fake.route("GET", "/v1/catalog/us/artists/2000000001", json!({"data": [cat_artist()]}));
+        t.api.set_catalog_storefront(Some("jp")).unwrap();
+        assert_eq!(t.api.catalog_album("1000000001").unwrap().0.name, "Synthetic Album");
+        assert_eq!(t.api.catalog_artist("2000000001").unwrap().0.name, "Synth Artist");
+        assert_eq!(
+            catalog_paths(&t),
+            [
+                "/v1/catalog/jp/albums/1000000001",
+                "/v1/catalog/us/albums/1000000001",
+                "/v1/catalog/jp/artists/2000000001",
+                "/v1/catalog/us/artists/2000000001",
+            ]
+        );
+        // what the chosen region has is what is shown, without asking further
+        let t = MutationTestCase::new();
+        t.fake.route("GET", "/v1/catalog/jp/albums/1000000001", json!({"data": [cat_album()]}));
+        t.fake.route("GET", "/v1/catalog/us/albums/1000000001", json!({"data": []}));
+        t.api.set_catalog_storefront(Some("jp")).unwrap();
+        t.api.catalog_album("1000000001").unwrap();
+        assert_eq!(catalog_paths(&t), ["/v1/catalog/jp/albums/1000000001"]);
+        assert_eq!(t.fake.count("GET", "/v1/me/storefront"), 0);
+    }
+
+    #[test]
+    fn without_a_chosen_region_a_missing_item_is_asked_for_once() {
+        let t = MutationTestCase::new();
+        assert!(matches!(t.api.catalog_album("1000000404"), Err(ApiError::Web(WebError::NotFound(_)))));
+        assert!(matches!(t.api.catalog_song("1000000404"), Err(ApiError::Web(WebError::NotFound(_)))));
+        assert_eq!(t.api.lyrics("1000000404").unwrap(), None);
+        assert_eq!(
+            catalog_paths(&t),
+            ["/v1/catalog/us/albums/1000000404", "/v1/catalog/us/songs/1000000404", "/v1/catalog/us/songs/1000000404"]
+        );
     }
 
     #[test]

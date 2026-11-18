@@ -500,6 +500,16 @@ fn one_station_by_its_id() {
     assert!(t.fake.asked("GET /v1/catalog/us/stations/a/b").is_empty());
 }
 
+#[test]
+fn a_station_the_chosen_region_does_not_have_comes_from_the_account_s_storefront() {
+    let t = case();
+    t.api.set_catalog_storefront(Some("jp")).unwrap();
+    t.fake.route("GET /v1/catalog/us/stations/ra.1000000001", json!({"data": [station("ra.1000000001", "Station A")]}));
+    assert_eq!(t.api.station("ra.1000000001").unwrap().name, "Station A");
+    assert_eq!(t.fake.asked("GET /v1/catalog/jp/stations/ra.1000000001").len(), 1);
+    assert_eq!(t.fake.asked("GET /v1/catalog/us/stations/ra.1000000001").len(), 1);
+}
+
 // --- one item of the library ----------------------------------------------------------------
 
 #[test]
@@ -808,6 +818,26 @@ fn the_equivalent_song_prefers_the_album_then_the_rating() {
     unknown["attributes"].as_object_mut().unwrap().remove("durationInMillis");
     t.fake.route("GET /v1/catalog/us/search", search(vec![unknown]));
     assert_eq!(t.api.equivalent_song(&withdrawn()).unwrap().unwrap().catalog_id.as_deref(), Some("1000000108"));
+}
+
+#[test]
+fn the_equivalent_song_is_looked_for_in_the_account_s_storefront() {
+    let t = case();
+    t.api.set_catalog_storefront(Some("jp")).unwrap();
+    t.fake.route(
+        "GET /v1/catalog/us/search",
+        search(vec![song(
+            "1000000106",
+            "Song A (feat. Guest B)",
+            "Synth Artist",
+            "Album A",
+            201_000,
+            Some("explicit"),
+        )]),
+    );
+    let found = t.api.equivalent_song(&withdrawn()).unwrap().unwrap();
+    assert_eq!(found.catalog_id.as_deref(), Some("1000000106"));
+    assert!(t.fake.asked("GET /v1/catalog/jp/search").is_empty());
 }
 
 #[test]

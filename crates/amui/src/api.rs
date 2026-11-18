@@ -41,7 +41,11 @@
 //! ```
 //!
 //! `{sf}` is [`MusicApi::catalog_storefront`]: the account's storefront unless
-//! [`MusicApi::set_catalog_storefront`] overrides it.
+//! [`MusicApi::set_catalog_storefront`] chose another region. The region decides what the catalog
+//! shows (search, charts, the pages of albums, artists, playlists and stations); what concerns a
+//! song the account plays is asked in the account's own storefront ([`MusicApi::lyrics`],
+//! [`MusicApi::catalog_song`], [`MusicApi::equivalent_song`]). An item one of the two storefronts
+//! does not know is looked for in the other one.
 //!
 //! Library items carry the playable catalog id in `attributes.playParams.catalogId` (songs only;
 //! albums/playlists need `include=catalog` -> `relationships.catalog`). Artwork comes as
@@ -82,6 +86,11 @@
 //!   at every missing level (Python: the last one).
 //! * The JSON body of an edit is compact and keeps non-ASCII text as UTF-8 (Python: `", "` and
 //!   `": "` separators, `\uXXXX` escapes). It is the same JSON.
+//! * The chosen catalog region applies to what the catalog shows, not to the account's own songs.
+//!   In Python, lyrics and song lookups followed the override too: a song the chosen region does
+//!   not offer came back as "not found", and lyrics, which Apple gives for the account's
+//!   storefront, stayed away. The pages of albums, artists, playlists and stations keep to the
+//!   region and fall back to the account's storefront for an id the region does not know.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::{self, OpenOptions};
@@ -1091,13 +1100,26 @@ impl MusicApi {
 
     // --- catalog
 
-    fn catalog(&self, kind: &str, catalog_id: &str) -> Result<String, ApiError> {
-        Ok(format!("/v1/catalog/{}/{kind}/{}", self.catalog_storefront()?, path_id(catalog_id)?))
+    /// An item the catalog shows, asked for by its id: the chosen region's, and the account's
+    /// when the region does not know the id (the album or the artist of a song of the account,
+    /// say).
+    fn shown<T>(&self, ask: impl Fn(&str) -> Result<T, ApiError>) -> Result<T, ApiError> {
+        in_either(&self.catalog_storefront()?, || self.storefront().ok(), ask)
     }
 
+    /// Something about a song the account plays: asked in the account's storefront, whatever
+    /// region the catalog shows, and in the chosen region only for a song the account's
+    /// storefront does not know.
+    fn for_account<T>(&self, ask: impl Fn(&str) -> Result<T, ApiError>) -> Result<T, ApiError> {
+        in_either(&self.storefront()?, || self.catalog_storefront_override(), ask)
+    }
+
+    /// One song of the catalog, as the account's storefront has it.
     pub fn catalog_song(&self, catalog_id: &str) -> Result<Track, ApiError> {
-        let body = self.get(&self.catalog("songs", catalog_id)?, &[], Some(TTL_CATALOG))?;
-        parse_track(single(&body)?, None).ok_or_else(|| failed("Apple returned a song without attributes"))
+        self.for_account(|storefront| {
+            let body = self.get(&catalog_path(storefront, "songs", catalog_id)?, &[], Some(TTL_CATALOG))?;
+            parse_track(single(&body)?, None).ok_or_else(|| failed("Apple returned a song without attributes"))
+        })
     }
 
     /// Embedded relationship data plus any further pages behind its `next` link.
@@ -1124,12 +1146,14 @@ impl MusicApi {
 
     /// A catalog album and its tracks.
     pub fn catalog_album(&self, catalog_id: &str) -> Result<(Album, Vec<Track>), ApiError> {
-        let body =
-            self.get(&self.catalog("albums", catalog_id)?, &[("include", param("tracks"))], Some(TTL_CATALOG))?;
-        let item = single(&body)?;
-        let album = parse_album(item).ok_or_else(|| failed("Apple returned an album without attributes"))?;
-        let tracks = self.relationship(item, "tracks", |track| parse_track(track, Some(&album)))?;
-        Ok((album, tracks))
+        self.shown(|storefront| {
+            let path = catalog_path(storefront, "albums", catalog_id)?;
+            let body = self.get(&path, &[("include", param("tracks"))], Some(TTL_CATALOG))?;
+            let item = single(&body)?;
+            let album = parse_album(item).ok_or_else(|| failed("Apple returned an album without attributes"))?;
+            let tracks = self.relationship(item, "tracks", |track| parse_track(track, Some(&album)))?;
+            Ok((album, tracks))
+        })
     }
 
     /// Artist, top songs, albums (the full-albums view followed by the singles view,
@@ -1141,38 +1165,47 @@ impl MusicApi {
             ("limit[full-albums]", param(50)),
             ("limit[singles]", param(50)),
         ];
-        let body = self.get(&self.catalog("artists", catalog_id)?, &params, Some(TTL_CATALOG))?;
-        let item = single(&body)?;
-        let artist = parse_artist(item).ok_or_else(|| failed("Apple returned an artist without attributes"))?;
-        let view = |name: &str| listed(item.get("views").and_then(|views| views.get(name)));
-        let top = view("top-songs").filter_map(|song| parse_track(song, None)).collect();
-        let mut albums: Vec<Album> = Vec::new();
-        let mut seen = HashSet::new();
-        for album in view("full-albums").chain(view("singles")).filter_map(parse_album) {
-            if seen.insert(album.key()) {
-                albums.push(album);
+        self.shown(|storefront| {
+            let body = self.get(&catalog_path(storefront, "artists", catalog_id)?, &params, Some(TTL_CATALOG))?;
+            let item = single(&body)?;
+            let artist = parse_artist(item).ok_or_else(|| failed("Apple returned an artist without attributes"))?;
+            let view = |name: &str| listed(item.get("views").and_then(|views| views.get(name)));
+            let top = view("top-songs").filter_map(|song| parse_track(song, None)).collect();
+            let mut albums: Vec<Album> = Vec::new();
+            let mut seen = HashSet::new();
+            for album in view("full-albums").chain(view("singles")).filter_map(parse_album) {
+                if seen.insert(album.key()) {
+                    albums.push(album);
+                }
             }
-        }
-        Ok((artist, top, albums))
+            Ok((artist, top, albums))
+        })
     }
 
     /// A catalog playlist and its tracks; a playlist that does not say how many it has gets the
     /// number loaded.
     pub fn catalog_playlist(&self, catalog_id: &str) -> Result<(Playlist, Vec<Track>), ApiError> {
-        let body =
-            self.get(&self.catalog("playlists", catalog_id)?, &[("include", param("tracks"))], Some(TTL_CATALOG))?;
-        let item = single(&body)?;
-        let mut playlist =
-            parse_playlist(item).ok_or_else(|| failed("Apple returned a playlist without attributes"))?;
-        let tracks = self.relationship(item, "tracks", |track| parse_track(track, None))?;
-        playlist.track_count = playlist.track_count.or(Some(tracks.len() as i64));
-        Ok((playlist, tracks))
+        self.shown(|storefront| {
+            let path = catalog_path(storefront, "playlists", catalog_id)?;
+            let body = self.get(&path, &[("include", param("tracks"))], Some(TTL_CATALOG))?;
+            let item = single(&body)?;
+            let mut playlist =
+                parse_playlist(item).ok_or_else(|| failed("Apple returned a playlist without attributes"))?;
+            let tracks = self.relationship(item, "tracks", |track| parse_track(track, None))?;
+            playlist.track_count = playlist.track_count.or(Some(tracks.len() as i64));
+            Ok((playlist, tracks))
+        })
     }
 
     // --- search
 
     /// Search the catalog (Python default: `limit=10`); a blank term makes no request.
     pub fn search_catalog(&self, term: &str, limit: i64) -> Result<SearchResults, ApiError> {
+        self.search_in(None, term, limit)
+    }
+
+    /// Search the catalog of `storefront` (`None`: the one the catalog shows).
+    fn search_in(&self, storefront: Option<&str>, term: &str, limit: i64) -> Result<SearchResults, ApiError> {
         let term = term.trim();
         if term.is_empty() {
             return Ok(SearchResults::default());
@@ -1183,8 +1216,11 @@ impl MusicApi {
             ("limit", param(clamp(limit, SEARCH_LIMIT))),
             ("with", param("topResults")),
         ];
-        let body =
-            self.get(&format!("/v1/catalog/{}/search", self.catalog_storefront()?), &params, Some(TTL_CATALOG))?;
+        let storefront = match storefront {
+            Some(storefront) => storefront.to_string(),
+            None => self.catalog_storefront()?,
+        };
+        let body = self.get(&format!("/v1/catalog/{storefront}/search"), &params, Some(TTL_CATALOG))?;
         let results = body.get("results");
         let top = Some(bucket(results, "topResults", parse_item)).filter(|top| !top.is_empty());
         let top = top.unwrap_or_else(|| bucket(results, "top", parse_item));
@@ -1222,11 +1258,16 @@ impl MusicApi {
     // --- lyrics (parsed TTML; None when the song has none)
 
     /// The song's lyrics: word-timed when Apple has them, else line-timed; `None` when the song
-    /// has none (or Apple does not know the song).
+    /// has none (or Apple does not know the song). Apple gives lyrics for the account's
+    /// storefront: they are asked for there, whatever region the catalog shows.
     pub fn lyrics(&self, catalog_id: &str) -> Result<Option<Lyrics>, ApiError> {
         let params = [("include", param("lyrics,syllable-lyrics")), ("extend", param("ttmlLocalizations"))];
-        let fetched = self.catalog("songs", catalog_id).and_then(|path| self.get(&path, &params, Some(TTL_LYRICS)));
-        let Some(body) = unless_not_found(fetched)? else { return Ok(None) };
+        let song = |storefront: &str| {
+            let body = self.get(&catalog_path(storefront, "songs", catalog_id)?, &params, Some(TTL_LYRICS))?;
+            single(&body)?; // an answer without the song is one that does not know it
+            Ok(body)
+        };
+        let Some(body) = unless_not_found(self.for_account(song))? else { return Ok(None) };
         let Some(item) = unless_not_found(single(&body))? else { return Ok(None) };
         let (ttml, source) = match ttml_text(item, "syllable-lyrics", "ttmlLocalizations") {
             Some(ttml) => (ttml, "syllable-lyrics"),
@@ -1520,7 +1561,7 @@ impl MusicApi {
         Ok(())
     }
 
-    // --- catalog storefront override (catalog, search, charts and lyrics requests)
+    // --- catalog storefront override (what the catalog shows)
 
     fn storefront_override_file(&self) -> PathBuf {
         self.cache_dir.join("storefront-override.json")
@@ -1541,8 +1582,9 @@ impl MusicApi {
         state.storefront_override.clone().unwrap_or_default()
     }
 
-    /// Storefront used for catalog, search, charts and lyrics: the override when set, else the
-    /// account's.
+    /// Storefront of what the catalog shows (search, charts, the pages of its items): the
+    /// override when set, else the account's. What concerns the account's own songs goes by
+    /// [`Self::storefront`].
     pub fn catalog_storefront(&self) -> Result<String, ApiError> {
         match self.override_code() {
             code if code.is_empty() => self.storefront(),
@@ -1575,6 +1617,28 @@ impl MusicApi {
         };
         state.storefront_override = Some(value);
         Ok(())
+    }
+}
+
+/// The path of a catalog resource in a storefront.
+fn catalog_path(storefront: &str, kind: &str, catalog_id: &str) -> Result<String, ApiError> {
+    Ok(format!("/v1/catalog/{storefront}/{kind}/{}", path_id(catalog_id)?))
+}
+
+/// What `ask` finds in the storefront `first`; when Apple does not know the id there, what it
+/// finds in `second` (asked for only then; nothing when that is no other storefront).
+fn in_either<T>(
+    first: &str,
+    second: impl FnOnce() -> Option<String>,
+    ask: impl Fn(&str) -> Result<T, ApiError>,
+) -> Result<T, ApiError> {
+    let missing = match ask(first) {
+        Err(error) if error.is_not_found() => error,
+        answer => return answer,
+    };
+    match second().filter(|other| other != first) {
+        Some(other) => ask(&other),
+        None => Err(missing),
     }
 }
 

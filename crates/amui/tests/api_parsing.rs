@@ -833,6 +833,22 @@ mod lyrics_test {
     }
 
     #[test]
+    fn lyrics_come_from_the_account_s_storefront_whatever_region_is_chosen() {
+        let t = ApiTestCase::new();
+        t.api.set_catalog_storefront(Some("jp")).unwrap();
+        t.fake.route("/v1/catalog/us/songs/1000000002", lyrics_response(true, true, None));
+        // the chosen region does not offer lyrics of this song to the account
+        t.fake.route("/v1/catalog/jp/songs/1000000002", lyrics_response(false, false, None));
+        let lyrics = t.api.lyrics("1000000002").unwrap().unwrap();
+        assert_eq!((lyrics.source.as_str(), lyrics.timing), ("syllable-lyrics", Timing::Word));
+        assert_eq!(t.fake.count("/v1/catalog/jp/songs/1000000002"), 0);
+        // a song the account's storefront does not know: the chosen region is asked
+        t.fake.route("/v1/catalog/jp/songs/1000000003", lyrics_response(false, true, None));
+        assert_eq!(t.api.lyrics("1000000003").unwrap().unwrap().source, "lyrics");
+        assert_eq!(t.fake.paths().iter().filter(|path| path.ends_with("/songs/1000000003")).count(), 2);
+    }
+
+    #[test]
     fn unparseable_ttml_is_a_web_error() {
         let t = ApiTestCase::new();
         t.fake.route("/v1/catalog/us/songs/1000000002", lyrics_response(true, true, Some(json!("<tt>"))));
