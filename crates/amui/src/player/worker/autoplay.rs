@@ -85,7 +85,13 @@ impl Worker {
     /// After each command: when the entry at the queue position is another one than last time,
     /// ask for what the queue needs now. A failure of Autoplay is tried again here.
     pub(super) fn follow_queue(&mut self) {
-        let entry = self.st().entry_at_index().map(|entry| entry.id);
+        let entry = {
+            let st = self.st();
+            if st.restored() {
+                return; // a queue kept from the last run asks for nothing until it plays
+            }
+            st.entry_at_index().map(|entry| entry.id)
+        };
         if entry == self.following.seen {
             return;
         }
@@ -122,9 +128,9 @@ impl Worker {
     }
 
     /// Ask for the songs the queue needs: more of the station whose queue plays, else
-    /// Autoplay's.
+    /// Autoplay's. (A queue kept from the last run needs none until it plays.)
     pub(super) fn top_up(&mut self) {
-        if self.shared.radio.is_none() {
+        if self.shared.radio.is_none() || self.st().restored() {
             return;
         }
         let station = self.st().station.clone();

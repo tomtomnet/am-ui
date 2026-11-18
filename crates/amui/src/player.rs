@@ -162,6 +162,16 @@
 //!   folder (0600, with the time it was found; after [`EQUIVALENT_MAX_AGE_S`] it is looked up
 //!   again), so the next play does not fail first. Without one (or without a radio) the song is
 //!   reported as no longer available on Apple Music and passed over.
+//! * What was playing comes back after a restart: with [`PlayerOptions::resume_path`] (the
+//!   application's player; the command line's has none) the queue and where it stood are kept in
+//!   the state folder (see `resume`), and a new player starts with them: the queue in its order
+//!   with Autoplay's entries marked, shuffle and repeat as they were, the current song *paused*
+//!   at its position, with nothing loaded and nothing on the output. Such a song is in the state
+//!   "paused" without a current source (`State::restored()`): the snapshot shows it with the
+//!   saved position, a seek moves that position, and a change of mode or quality has nothing to
+//!   do yet. The first command that plays (toggle, resume, or next, previous and jump as for a
+//!   paused song) loads it as usual, from that position. Until then the player asks nothing of
+//!   the network; Autoplay and the station's songs follow when the queue plays.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -187,6 +197,7 @@ mod gate;
 mod jobs;
 mod queue;
 mod radio;
+mod resume;
 mod seams;
 mod shared;
 mod worker;
@@ -194,11 +205,12 @@ mod worker;
 pub use self::queue::{Container, QueueEntry};
 use self::radio::Equivalents;
 pub use self::radio::Radio;
+use self::resume::ResumeFiles;
 pub use self::seams::{
     EnginePipeline, ErrorCallback, LoudnessStream, Output, PcmStore, Pipeline, Source, SourceCallback,
 };
 use self::shared::{Command, Poster, Shared, State};
-use self::worker::Worker;
+use self::worker::{Keeper, Worker};
 
 /// Seconds between two position events.
 pub const POSITION_INTERVAL_S: f64 = 0.25;
@@ -245,6 +257,19 @@ pub const STATION_LOW: usize = 2;
 pub const EQUIVALENTS_FILE: &str = "equivalents.json";
 /// A current version found longer ago than this (30 days) is looked up again.
 pub const EQUIVALENT_MAX_AGE_S: f64 = 30.0 * 24.0 * 3600.0;
+/// The queue kept between runs (with [`PlayerOptions::resume_path`], which names it), in the
+/// state folder ...
+pub const RESUME_FILE: &str = "resume.json";
+/// ... and, next to it, the current entry and the position in it.
+pub const RESUME_POSITION_FILE: &str = "resume-position.json";
+/// The format of those two files; other versions are not read.
+pub const RESUME_VERSION: u64 = 1;
+/// Seconds between two savings of the position while a song plays.
+pub const RESUME_INTERVAL_S: f64 = 5.0;
+/// Entries kept of a longer queue: some before the current one ...
+pub const RESUME_MAX_ENTRIES: usize = 5000;
+/// ... at most this many, the rest after it.
+pub const RESUME_ENTRIES_BEFORE: usize = 200;
 /// The notice for an edit of the queue of a station.
 pub const STATION_QUEUE_FIXED: &str = "The queue of a station cannot be changed";
 /// The notice for a station without songs to ask for (a live broadcast).
@@ -426,6 +451,8 @@ pub struct Tuning {
     /// Seconds a start waits for the full measurement of a complete file before it makes do
     /// with the estimate ([`LOUDNESS_FINAL_WAIT_S`]).
     pub loudness_final_wait_s: f64,
+    /// Seconds between two savings of the position while a song plays ([`RESUME_INTERVAL_S`]).
+    pub resume_interval_s: f64,
 }
 
 impl Default for Tuning {
@@ -435,6 +462,7 @@ impl Default for Tuning {
             render_start_max_wait_s: RENDER_START_MAX_WAIT_S,
             loudness_start_wait_s: LOUDNESS_START_WAIT_S,
             loudness_final_wait_s: LOUDNESS_FINAL_WAIT_S,
+            resume_interval_s: RESUME_INTERVAL_S,
         }
     }
 }
@@ -460,6 +488,10 @@ pub struct PlayerOptions {
     /// `MusicApi`); `None`: Autoplay adds nothing, `play_station()` does nothing and a withdrawn
     /// song is reported as no longer available.
     pub radio: Option<Arc<dyn Radio>>,
+    /// The file ([`RESUME_FILE`] in the state folder for the application's player) that keeps
+    /// the queue and the position from one run to the next; [`RESUME_POSITION_FILE`] lies next to
+    /// it. `None`: nothing is kept and nothing comes back.
+    pub resume_path: Option<PathBuf>,
 }
 
 /// Sets the flag when the worker's thread ends, however it ends.
@@ -500,6 +532,8 @@ impl Player {
             state.restore_settings(&saved);
         }
         let equivalents = Equivalents::load(config.state_dir.join(EQUIVALENTS_FILE));
+        let resume = options.resume_path.map(ResumeFiles::new);
+        let resumed = resume.as_ref().and_then(ResumeFiles::load);
         let (sender, commands) = mpsc::channel();
         let shared = Arc::new(Shared::new(
             config,
@@ -516,8 +550,12 @@ impl Player {
             equivalents,
             state,
         ));
+        if let Some(resumed) = resumed {
+            shared.restore(resumed);
+        }
+        let keeper = resume.map(|files| Keeper::new(files, &shared));
         let worker_ended = Arc::new(Event::new());
-        let (worker, ended) = (Worker::new(shared.clone(), commands), SetOnDrop(worker_ended.clone()));
+        let (worker, ended) = (Worker::new(shared.clone(), commands, keeper), SetOnDrop(worker_ended.clone()));
         let thread = thread::Builder::new().name("am-ui-player".to_string()).spawn(move || {
             let _ended = ended;
             worker.run();

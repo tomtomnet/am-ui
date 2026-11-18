@@ -219,6 +219,7 @@ entry and icon, so a step that writes somewhere new adds that path there. It ref
 | `cache/pcm/<id>.<kind>/` | renders and decodes (`atmos-916.f32le` with `render-summary.json`, or 2-channel PCM); the current, next and previous are kept |
 | `cache/art/` | artwork, 256 MiB |
 | `state/player.json` | the player's settings (mode, profile, volume, fallback, Sound Check, lossless, autoplay) |
+| `state/resume.json`, `state/resume-position.json` | the queue with its tracks' metadata, and the current song's position: what comes back at the next start (0600) |
 | `state/downmix.json`, `state/eq.json` | the downmix profile with its preamp, the equalizer |
 | `state/library/*.json` | snapshots of the library's lists (0600), shown at start-up |
 | `state/equivalents.json` | current catalog versions of withdrawn songs (30 days) |
@@ -322,8 +323,11 @@ through RealtimeKit when allowed. `Player::dump_recent()` writes the last 30 sec
 song, swaps versions in place when Dolby Atmos, Lossless or the profile changes, and runs
 **Autoplay** as Apple's apps do: a continuous station seeded with the last ten songs keeps ten
 songs ahead, and waits while more than fifty queued songs are still to play. Stations play through
-`next-tracks`. Requests of Apple's web player that the engine follows: `research/engine-api.md` and
-the notes of 2026-11-14 summarised in `research/engine-playback.md`.
+`next-tracks`. The application's player keeps its queue between runs (`player/resume.rs`): at the
+next start the last song is back in the player bar, paused where it stopped, with its queue, and
+nothing plays or is fetched until the user asks. Requests of Apple's web player that the engine
+follows: `research/engine-api.md` and the notes of 2026-11-14 summarised in
+`research/engine-playback.md`.
 
 ## The application
 

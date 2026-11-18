@@ -12,6 +12,7 @@ use serde_json::{Map, Value, json};
 use super::gate::RenderGate;
 use super::jobs::{ApplyJob, Job, LoudnessJob, PreampJob, Preparing};
 use super::radio::{Equivalents, Radio, RadioJob};
+use super::resume::{Resumed, by_id};
 use super::seams::{Output, PcmStore, Pipeline, Source, same_pcm};
 use super::{Container, Kind, OutputFactory, PlayerEvent, QueueEntry, Tuning};
 use crate::cache::MediaCache;
@@ -181,6 +182,12 @@ impl State {
 
     pub fn active(&self) -> bool {
         matches!(self.state, PlayerState::Playing | PlayerState::Paused)
+    }
+
+    /// The song at the queue position came back from the last run and is not loaded: it counts
+    /// as paused at `pending_start_frame`, with nothing on the output.
+    pub fn restored(&self) -> bool {
+        self.state == PlayerState::Paused && self.current.is_none()
     }
 
     /// Nothing is on the output for the entry at the queue position (yet): the snapshot shows
@@ -457,6 +464,32 @@ impl Shared {
         tracks.into_iter().map(entry).collect()
     }
 
+    /// Put the queue of the last run in place: its song counts as paused where it stopped, and
+    /// nothing is loaded before the user asks. Before the worker starts.
+    pub fn restore(&self, resumed: Resumed) {
+        let Resumed { entries, original, current, start_frame, station } = resumed;
+        let highest = entries.iter().map(|entry| entry.id).max().unwrap_or(0);
+        self.next_entry_id.store(highest + 1, Ordering::Relaxed);
+        self.log.write(&format!(
+            "resume: {} queue entries, {:.1} s into the current one",
+            entries.len(),
+            start_frame as f64 / RATE
+        ));
+        let entries: Vec<Arc<QueueEntry>> = entries.into_iter().map(Arc::new).collect();
+        let mut st = lock(&self.state);
+        st.index = entries.iter().position(|entry| entry.id == current).map_or(-1, |index| index as i64);
+        // the order to go back to, where it applies
+        if st.shuffle && station.is_none() {
+            let known = by_id(&entries);
+            st.original = original.map(|order| order.iter().filter_map(|id| known.get(id).cloned()).collect());
+        }
+        st.queue = entries;
+        st.station = station;
+        st.state = PlayerState::Paused;
+        st.paused_requested = true;
+        st.pending_start_frame = start_frame;
+    }
+
     /// Hand an event to the listener; a panic inside it is contained.
     pub fn emit(&self, event: PlayerEvent) {
         let _ = catch_unwind(AssertUnwindSafe(|| (self.listener)(event)));
@@ -528,7 +561,8 @@ impl Shared {
                     _ => {}
                 }
             }
-            None if st.state == PlayerState::Loading => position = loading_position,
+            // (what is paused without a source is a song kept from the last run)
+            None if matches!(st.state, PlayerState::Loading | PlayerState::Paused) => position = loading_position,
             None => {}
         }
         let loudness = current.map(|current| current.prepared.loudness());

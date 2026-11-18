@@ -1218,6 +1218,8 @@ pub struct Setup {
     pub radio: bool,
     /// Files (name, content) put into the state folder before the player is made.
     pub state_files: Vec<(String, String)>,
+    /// Where the player keeps its queue between runs (`None`: it keeps nothing).
+    pub resume_path: Option<PathBuf>,
 }
 
 /// A player on stand-ins, in a scratch folder (which goes last, after the player has stopped).
@@ -1270,6 +1272,7 @@ impl Harness {
             state_path: Some(state_path.clone()),
             tuning: setup.tuning.unwrap_or_else(patient),
             radio: setup.radio.then(|| radio.clone() as Arc<dyn Radio>),
+            resume_path: setup.resume_path,
         };
         let listener = move |event: PlayerEvent| lock(&heard).push(event);
         let player = Player::new(config.clone(), pipeline.clone(), log.clone(), listener, options).unwrap();

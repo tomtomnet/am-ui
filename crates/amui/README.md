@@ -24,7 +24,7 @@ pipeline are in `research/engine-*.md`. No user interface code lives here.
 | `eq`, `downmix` | the equalizer's presets and the downmix profiles; today still applied to the shared downmix sink |
 | `session` | sign-in status and the native sign-in |
 | `wrapper` | the lossless route's control helper (stage, start, stop, status, the native sign-in); `amui wrapper` and `am-ui --wrapper` run it |
-| `player` | queue and playback state machine: prefetch, gapless hand-over, Sound Check, Autoplay, stations, current versions of withdrawn songs |
+| `player` | queue and playback state machine: prefetch, gapless hand-over, Sound Check, Autoplay, stations, current versions of withdrawn songs, the queue kept between runs |
 | `doctor`, `cli` | what this machine has and lacks; the `amui` command line (`amui help`) |
 
 ## Conventions

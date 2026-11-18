@@ -2,7 +2,7 @@
 //! state machine. Its methods take `&mut self`, so none of them can be called while a guard of
 //! the shared state is held. What it asks of the radio lives in two parts of its own:
 //! `autoplay` (Autoplay and stations) and `equivalent` (songs whose catalog version was
-//! withdrawn).
+//! withdrawn); `resume` keeps the queue for the next run.
 
 use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -28,9 +28,11 @@ use crate::util::python_repr;
 
 mod autoplay;
 mod equivalent;
+mod resume;
 
 use self::autoplay::Following;
 use self::equivalent::Withdrawn;
+pub(super) use self::resume::Keeper;
 
 /// The four kinds of one song in the PCM cache.
 const ALL_KINDS: [Kind; 4] = [Kind::Atmos, Kind::Stereo, Kind::Lossless, Kind::Binaural];
@@ -61,10 +63,12 @@ pub(super) struct Worker {
     following: Following,
     /// Songs whose catalog version was withdrawn.
     withdrawn: Withdrawn,
+    /// What is kept for the next run; `None`: nothing is.
+    keeper: Option<Keeper>,
 }
 
 impl Worker {
-    pub fn new(shared: Arc<Shared>, commands: Receiver<Command>) -> Worker {
+    pub fn new(shared: Arc<Shared>, commands: Receiver<Command>, keeper: Option<Keeper>) -> Worker {
         Worker {
             shared,
             commands,
@@ -78,6 +82,7 @@ impl Worker {
             shuffler: Shuffler::new(),
             following: Following::default(),
             withdrawn: Withdrawn::default(),
+            keeper,
         }
     }
 
@@ -86,6 +91,12 @@ impl Worker {
         let _ = catch_unwind(AssertUnwindSafe(|| self.check_live_profile()));
         let live_preamp = self.shared.pipeline.downmix_preamp();
         self.st().preamp = live_preamp;
+        if self.st().restored() {
+            // what came back from the last run is there before anything else happens
+            self.emit_queue();
+            self.emit_state();
+            self.emit_position();
+        }
         let interval = Duration::from_secs_f64(POSITION_INTERVAL_S);
         loop {
             let command = match self.commands.recv_timeout(interval) {
@@ -101,14 +112,19 @@ impl Worker {
                     self.follow_queue();
                     self.shared.gate.poll();
                     self.maybe_emit_position(false);
+                    self.remember(true, false);
                 }
-                None => self.tick(),
+                None => {
+                    self.tick();
+                    self.remember(false, false);
+                }
             }));
             if let Err(panic) = handled {
                 // a bug must not kill the worker
                 self.emit_error(format!("{name} failed: {}", panic_text(&*panic)), None, false);
             }
         }
+        let _ = catch_unwind(AssertUnwindSafe(|| self.remember_last()));
         self.shared.cleanup();
     }
 
@@ -276,6 +292,22 @@ impl Worker {
             position: output.position_frames() as f64 / RATE,
             buffered: output.buffered_frames() as f64 / RATE,
         });
+    }
+
+    /// Say where the song stands now, whatever the state: on the output, or where it will start
+    /// (a seek while nothing plays, a song kept from the last run).
+    fn emit_position(&mut self) {
+        let (position, buffered) = {
+            let st = self.st();
+            match (&st.current, &st.output) {
+                (Some(_), Some(output)) if st.active() => {
+                    (output.position_frames() as f64 / RATE, output.buffered_frames() as f64 / RATE)
+                }
+                _ => (st.pending_start_frame as f64 / RATE, 0.0),
+            }
+        };
+        self.last_position_emit = Some(Instant::now());
+        self.shared.emit(PlayerEvent::Position { position, buffered });
     }
 
     fn set_error(&mut self, message: String, fatal: bool, catalog_id: Option<String>) {
@@ -538,11 +570,12 @@ impl Worker {
     }
 
     fn remove_at(&mut self, index: usize) {
-        let (was_current, busy, takes_its_place) = {
+        let (was_current, busy, takes_its_place, restored) = {
             let mut st = self.st();
             if index >= st.queue.len() {
                 return;
             }
+            let restored = st.restored();
             let removed = st.queue.remove(index);
             if let Some(original) = st.original.as_mut() {
                 original.retain(|entry| entry.id != removed.id);
@@ -555,14 +588,19 @@ impl Worker {
             if st.index >= st.queue.len() as i64 {
                 st.index = st.queue.len() as i64 - 1;
             }
-            let busy = matches!(st.state, PlayerState::Playing | PlayerState::Paused | PlayerState::Loading);
+            let busy =
+                !restored && matches!(st.state, PlayerState::Playing | PlayerState::Paused | PlayerState::Loading);
             let takes_its_place = index < st.queue.len() as i64;
             if was_current && busy && takes_its_place {
                 // the entry that took its place starts
                 st.index = index;
                 st.leave_current();
             }
-            (was_current, busy, takes_its_place)
+            if was_current && restored && takes_its_place {
+                // it stands where this one stood: paused, at its beginning, nothing loaded
+                st.pending_start_frame = 0;
+            }
+            (was_current, busy, takes_its_place, restored)
         };
         self.emit_queue();
         if !was_current {
@@ -570,9 +608,12 @@ impl Worker {
             self.arm_prefetch();
         } else if busy && takes_its_place {
             self.start_current(0, None, 0);
-        } else if busy {
+        } else if (busy || restored) && !takes_its_place {
             self.cmd_stop();
         } else {
+            if restored {
+                self.emit_position();
+            }
             self.emit_state();
         }
     }
@@ -652,7 +693,8 @@ impl Worker {
         }
     }
 
-    /// Start the entry at the queue position, at the frame a seek while stopped asked for.
+    /// Start the entry at the queue position, at the frame a seek while stopped asked for (or
+    /// where the song kept from the last run stood).
     fn start_where_it_stopped(&mut self) {
         let start_frame = {
             let mut st = self.st();
@@ -691,6 +733,8 @@ impl Worker {
                 self.st().state = PlayerState::Playing;
                 self.emit_state();
             }
+            // the song kept from the last run: it is loaded now, from where it stood
+            (PlayerState::Paused, _) if !has_current => self.start_where_it_stopped(),
             (PlayerState::Idle | PlayerState::Error, _) if self.has_position() => self.start_where_it_stopped(),
             _ => self.emit_state(),
         }
@@ -704,8 +748,9 @@ impl Worker {
     fn cmd_stop(&mut self) {
         self.cancel_jobs(true, true, true);
         self.next_prepared = None;
-        {
+        let restored = {
             let mut st = self.st();
+            let restored = st.restored();
             if let Some(output) = st.output.clone()
                 && output.alive()
             {
@@ -719,8 +764,12 @@ impl Worker {
             st.loading_phase = None;
             st.loading_progress = None;
             st.pending_start_frame = 0;
-        }
+            restored
+        };
         self.log("stop");
+        if restored {
+            self.emit_position(); // the place it was kept at is gone
+        }
         self.emit_state();
     }
 
@@ -735,15 +784,20 @@ impl Worker {
     }
 
     fn cmd_previous(&mut self) {
-        let (index, count, repeat, playing) = {
+        let (index, count, repeat, playing, restored) = {
             let st = self.st();
             let playing = if st.current.is_some() && st.active() { st.output.clone() } else { None };
-            (st.index, st.queue.len() as i64, st.repeat_mode(), playing)
+            let restored = st.restored().then_some(st.pending_start_frame);
+            (st.index, st.queue.len() as i64, st.repeat_mode(), playing, restored)
         };
         if index < 0 || count == 0 {
             return;
         }
-        let position = playing.map_or(0.0, |output| output.position_frames() as f64 / RATE);
+        let position = match (&playing, restored) {
+            (Some(output), _) => output.position_frames() as f64 / RATE,
+            (None, Some(frame)) => frame as f64 / RATE,
+            (None, None) => 0.0,
+        };
         if position > RESTART_THRESHOLD_S {
             self.cmd_seek(0.0);
             return;
@@ -752,6 +806,9 @@ impl Worker {
         if index < 0 {
             if repeat == RepeatMode::All && count > 1 {
                 index = count - 1;
+            } else if restored.is_some() {
+                self.cmd_seek(0.0); // the song stays as it is, at its beginning
+                return;
             } else {
                 self.start_current(0, None, 0);
                 return;
@@ -778,17 +835,24 @@ impl Worker {
                     frame = frame.min(total - 1);
                 }
                 output.seek(frame);
-                self.last_position_emit = None;
-                self.maybe_emit_position(true);
             }
             None => {
                 let mut st = self.st();
+                if st.restored()
+                    && let Some(ms) = st.entry_at_index().and_then(|entry| entry.track.duration_ms)
+                    && ms > 0
+                {
+                    // inside the song, as far as that is known before it is loaded
+                    frame = frame.min(((ms as f64 / 1000.0 * RATE) as u64).saturating_sub(1));
+                }
                 st.pending_start_frame = frame;
                 if let Some(job) = &st.load_job {
                     job.set_start_frame(frame);
                 }
             }
         }
+        self.remember_seek();
+        self.emit_position();
         self.emit_state();
     }
 
