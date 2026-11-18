@@ -81,11 +81,17 @@ pub fn quality_note(view: &PlayerView) -> String {
     lines.join("\n")
 }
 
-/// The rows of the open list: name, what it is, a check mark on the current one. The choices that
-/// need the lossless route cannot be taken without it.
-fn quality_items(lossless: bool) -> gtk::SignalListItemFactory {
+/// The check mark of a row of the open list: always in its place, so that the list keeps its width.
+fn show_mark(check: &gtk::Image, current: bool) {
+    check.set_opacity(if current { 1.0 } else { 0.0 });
+}
+
+/// The rows of the open list of `combo`: name, what it is, a check mark on the current choice. The
+/// choices that need the lossless route cannot be taken without it.
+fn quality_items(combo: &adw::ComboRow, lossless: bool) -> gtk::SignalListItemFactory {
     let factory = gtk::SignalListItemFactory::new();
-    factory.connect_setup(|_, item| {
+    let owner = combo.downgrade();
+    factory.connect_setup(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else { return };
         let name = gtk::Label::new(None);
         name.set_xalign(0.0);
@@ -97,13 +103,31 @@ fn quality_items(lossless: bool) -> gtk::SignalListItemFactory {
         text.set_hexpand(true);
         text.append(&name);
         text.append(&what);
+        // the mark follows the choice: the list's own selection is the row under the pointer
         let check = gtk::Image::from_icon_name("am-object-select-symbolic");
-        item.bind_property("selected", &check, "visible").sync_create().build();
+        show_mark(&check, false);
+        if let Some(combo) = owner.upgrade() {
+            let shown = item.downgrade();
+            combo.connect_closure(
+                "notify::selected",
+                false,
+                glib::closure_local!(
+                    #[watch]
+                    check,
+                    move |combo: adw::ComboRow, _: glib::ParamSpec| {
+                        if let Some(item) = shown.upgrade() {
+                            show_mark(check, item.position() == combo.selected());
+                        }
+                    }
+                ),
+            );
+        }
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         row.append(&text);
         row.append(&check);
         item.set_child(Some(&row));
     });
+    let owner = combo.downgrade();
     factory.connect_bind(move |_, item| {
         let Some(item) = item.downcast_ref::<gtk::ListItem>() else { return };
         let Some((quality, name, what)) = QUALITIES.get(item.position() as usize) else { return };
@@ -116,6 +140,9 @@ fn quality_items(lossless: bool) -> gtk::SignalListItemFactory {
         if let Some((first, second)) = labels {
             first.set_text(name);
             second.set_text(what);
+        }
+        if let (Some(combo), Some(check)) = (owner.upgrade(), row.last_child().and_downcast::<gtk::Image>()) {
+            show_mark(&check, item.position() == combo.selected());
         }
         let open = lossless || *quality == AudioQuality::Aac;
         item.set_activatable(open);
@@ -136,7 +163,7 @@ pub fn quality_row(note: impl Fn(&adw::ComboRow, &str) + 'static) -> adw::ComboR
     let names: Vec<&str> = QUALITIES.iter().map(|(_, name, _)| *name).collect();
     row.set_model(Some(&gtk::StringList::new(&names)));
     let view = ctx().player.view();
-    row.set_list_factory(Some(&quality_items(view.lossless_available)));
+    row.set_list_factory(Some(&quality_items(&row, view.lossless_available)));
     row.set_selected(quality_position(shown_quality(&view)));
     note(&row, &quality_note(&view));
 
@@ -150,7 +177,7 @@ pub fn quality_row(note: impl Fn(&adw::ComboRow, &str) + 'static) -> adw::ComboR
         row.set_selected(quality_position(shown_quality(&view)));
         setting.set(false);
         if lossless.replace(view.lossless_available) != view.lossless_available {
-            row.set_list_factory(Some(&quality_items(view.lossless_available)));
+            row.set_list_factory(Some(&quality_items(row, view.lossless_available)));
         }
         note(row, &quality_note(&view));
     });
