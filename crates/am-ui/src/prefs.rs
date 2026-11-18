@@ -1,10 +1,16 @@
 //! Preferences and About.
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use adw::prelude::*;
 use amui::types::AudioMode;
 
 use crate::app::ctx;
+use crate::data::Region;
 use crate::refresh::Refreshing;
+use crate::signal::background;
+use crate::widgets::region_picker;
 
 fn switch(title: &str, subtitle: &str, active: bool, changed: impl Fn(bool) + 'static) -> adw::SwitchRow {
     let row = adw::SwitchRow::new();
@@ -24,56 +30,64 @@ pub fn apply_appearance(choice: &str) {
     });
 }
 
-/// Which country's catalog search, New and the catalog pages show: the account's, or another.
-fn region_row() -> adw::ComboRow {
-    let row = adw::ComboRow::new();
-    row.set_title("Catalog Region");
-    row.set_subtitle("Search and browse the catalog of another country");
-    row.set_sensitive(false);
-    let names = gtk::StringList::new(&["Account"]);
-    for (_, name) in crate::regions::REGIONS {
-        names.append(name);
-    }
-    row.set_model(Some(&names));
-    // typing finds a country
-    let text = gtk::PropertyExpression::new(gtk::StringObject::static_type(), None::<&gtk::Expression>, "string");
-    row.set_expression(Some(&text));
-    row.set_enable_search(true);
-
-    // the account's region and the one chosen come from the service
+/// Show another region's catalog (`None`: the account's) from now on.
+fn set_region(code: Option<String>) {
     let music = ctx().music.clone();
-    let weak = row.downgrade();
-    crate::signal::background(
-        move || music.catalog_region(),
-        move |region| {
-            let Some(row) = weak.upgrade() else { return };
-            let Ok(region) = region else { return };
-            names.splice(0, 1, &[&format!("Account ({})", crate::regions::name(&region.account))]);
-            let chosen = region.chosen.as_deref().and_then(|code| {
-                crate::regions::REGIONS.iter().position(|(known, _)| *known == code).map(|index| index + 1)
-            });
-            row.set_selected(chosen.unwrap_or(0) as u32);
-            row.set_sensitive(true);
-            row.connect_selected_notify(|row| {
-                let code = match row.selected() as usize {
-                    0 => None,
-                    index => crate::regions::REGIONS.get(index - 1).map(|(code, _)| code.to_string()),
-                };
-                let music = ctx().music.clone();
-                crate::signal::background(
-                    move || music.set_catalog_region(code.as_deref()).map(|()| music.refresh()),
-                    |done| {
-                        let ctx = ctx();
-                        match done {
-                            // the pages show the other catalog from now on
-                            Ok(()) => ctx.refreshed.emit(&Refreshing::unobserved()),
-                            Err(problem) => ctx.toast.emit(&problem.message),
-                        }
-                    },
-                );
-            });
+    background(
+        move || music.set_catalog_region(code.as_deref()).map(|()| music.refresh()),
+        |done| {
+            let ctx = ctx();
+            match done {
+                // the pages show the other catalog from now on
+                Ok(()) => ctx.refreshed.emit(&Refreshing::unobserved()),
+                Err(problem) => ctx.toast.emit(&problem.message),
+            }
         },
     );
+}
+
+/// Which country's catalog search, New and the catalog pages show: the account's, or another.
+/// The row names it; activating it opens the list of the regions.
+fn region_row() -> adw::ActionRow {
+    let row = adw::ActionRow::new();
+    row.set_title("Catalog Region");
+    row.set_subtitle("Search and browse the catalog of another country");
+    row.set_activatable(true);
+    row.set_sensitive(false);
+    // a long name takes a second line
+    let value = gtk::Label::new(None);
+    value.add_css_class("dim-label");
+    value.set_wrap(true);
+    value.set_xalign(1.0);
+    value.set_justify(gtk::Justification::Right);
+    value.set_max_width_chars(24);
+    row.add_suffix(&value);
+    row.add_suffix(&gtk::Image::from_icon_name("am-go-next-symbolic"));
+
+    // the account's region and the one chosen come from the service
+    let known: Rc<RefCell<Option<Region>>> = Rc::default();
+    let (music, weak, answer) = (ctx().music.clone(), row.downgrade(), known.clone());
+    let (shown, value_weak) = (known.clone(), value.downgrade());
+    background(
+        move || music.catalog_region(),
+        move |region| {
+            let (Some(row), Some(value), Ok(region)) = (weak.upgrade(), value_weak.upgrade(), region) else { return };
+            value.set_text(&region_picker::label(&region));
+            answer.replace(Some(region));
+            row.set_sensitive(true);
+        },
+    );
+    row.connect_activated(move |row| {
+        let Some(region) = shown.borrow().clone() else { return };
+        let (known, value) = (known.clone(), value.clone());
+        region_picker::show(row, &region, move |code| {
+            let mut region = known.borrow_mut();
+            let Some(region) = region.as_mut().filter(|region| region.chosen != code) else { return };
+            region.chosen = code.clone();
+            value.set_text(&region_picker::label(region));
+            set_region(code);
+        });
+    });
     row
 }
 

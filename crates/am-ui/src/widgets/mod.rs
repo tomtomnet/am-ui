@@ -16,6 +16,7 @@ pub mod now_playing;
 pub mod player_bar;
 pub mod playlist_list;
 pub mod queue;
+pub mod region_picker;
 pub mod seek_bar;
 pub mod shelf;
 pub mod signin;

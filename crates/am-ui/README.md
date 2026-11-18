@@ -92,7 +92,7 @@ crates/am-ui/tools/headless.sh target/debug/am-ui --demo --playing --song 2 --se
 | `engine/` | the same interfaces on the engine: `music.rs` (Apple's service), `account.rs` (the sign-in), `equalizer.rs` |
 | `account.rs`, `widgets/signin.rs` | whether this machine is signed in, the sign-in dialog (Apple Account, password, code) |
 | `equalizer.rs`, `widgets/equalizer.rs`, `widgets/eq_graph.rs` | the equalizer's service, its dialog and the response graph |
-| `regions.rs` | Apple Music's regions with their names, for the catalog region in Preferences |
+| `regions.rs`, `widgets/region_picker.rs` | Apple Music's regions with their names and how one is found by its code or name; the dialog that chooses the catalog's region |
 | `signal.rs` | `Signal<T>` (listeners that end with their widget) and `background(work, done)` |
 | `library.rs`, `favorites.rs` | the library's list models; which songs are favourites |
 | `edits.rs` | what was changed in the library here and the service does not show yet, laid over its answers |
