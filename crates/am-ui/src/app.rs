@@ -303,6 +303,16 @@ fn remember(ctx: &Rc<Ctx>, window: &adw::ApplicationWindow) {
     });
 }
 
+/// The application ends, however it was asked to (a closed window, Quit, the desktop's media
+/// controls): the player stops, and what it keeps for the next start is written.
+pub fn shut_down() {
+    CTX.with(|slot| {
+        if let Some(ctx) = slot.borrow().as_ref() {
+            ctx.player.playback.shutdown();
+        }
+    });
+}
+
 /// The music service and the account on the engine: Apple's service with this machine's sign-in.
 type Services = (Arc<dyn Music>, Rc<dyn AccountService>, Rc<dyn Playback>, Arc<dyn EqualizerService>);
 

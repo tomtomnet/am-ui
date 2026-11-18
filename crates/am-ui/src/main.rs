@@ -119,5 +119,6 @@ fn main() -> glib::ExitCode {
         .flags(if standalone { gio::ApplicationFlags::NON_UNIQUE } else { gio::ApplicationFlags::empty() })
         .build();
     application.connect_activate(move |application| app::activate(application, &options));
+    application.connect_shutdown(|_| app::shut_down());
     application.run_with_args::<&str>(&[])
 }

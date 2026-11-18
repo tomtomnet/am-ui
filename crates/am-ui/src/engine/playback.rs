@@ -13,7 +13,9 @@ use amui::config::Config;
 use amui::downmix::Downmix;
 use amui::lossless::Lossless;
 use amui::output::PlaybackLog;
-use amui::player::{EnginePipeline, Player, PlayerError, PlayerEvent as EngineEvent, PlayerOptions, Radio};
+use amui::player::{
+    EnginePipeline, Player, PlayerError, PlayerEvent as EngineEvent, PlayerOptions, RESUME_FILE, Radio,
+};
 use amui::types::{AudioMode, PlaybackSnapshot, PlayerState, RepeatMode, Station, Track};
 use amui::web::Web;
 use gtk::glib;
@@ -168,7 +170,12 @@ impl EnginePlayback {
             let _ = sender.send_blocking(event);
         };
         let radio: Arc<dyn Radio> = api;
-        let options = PlayerOptions { radio: Some(radio), ..PlayerOptions::default() };
+        let options = PlayerOptions {
+            radio: Some(radio),
+            // the last song and its queue come back at the next start
+            resume_path: Some(config.state_dir.join(RESUME_FILE)),
+            ..PlayerOptions::default()
+        };
         let player = Arc::new(Player::new(config, pipeline, log, listener, options)?);
         let snapshot = player.snapshot();
         let inner = Rc::new(Inner {
@@ -196,6 +203,15 @@ impl Playback for EnginePlayback {
         self.inner.listener.replace(Some(listener));
         let view = self.inner.view.borrow().clone();
         self.inner.tell(PlayerEvent::View(Box::new(view)));
+        // a queue that came back from the last run is there from the first moment, with the
+        // position its song stopped at
+        let (tracks, autoplay): (Vec<Track>, Vec<bool>) =
+            self.player().queue().into_iter().map(|entry| (entry.track, entry.autoplay)).unzip();
+        if !tracks.is_empty() {
+            let snapshot = self.player().snapshot();
+            self.inner.tell(PlayerEvent::Queue { tracks, index: snapshot.index, autoplay });
+            self.inner.tell(PlayerEvent::Position { position: snapshot.position, buffered: 0.0 });
+        }
     }
 
     fn play(&self, tracks: Vec<Track>, index: usize) {

@@ -71,7 +71,13 @@ fn metadata_of(track: &Track, duration: Option<f64>) -> Metadata {
     builder.build()
 }
 
-async fn tell(remote: &Remote, view: &PlayerView, duration: Option<f64>, told: &mut Told) -> zbus::Result<()> {
+async fn tell(
+    remote: &Remote,
+    view: &PlayerView,
+    duration: Option<f64>,
+    position: f64,
+    told: &mut Told,
+) -> zbus::Result<()> {
     let now = Told {
         key: view.track.as_ref().map(Track::key),
         status: Some(view.state),
@@ -85,7 +91,8 @@ async fn tell(remote: &Remote, view: &PlayerView, duration: Option<f64>, told: &
         let metadata = view.track.as_ref().map(|track| metadata_of(track, duration)).unwrap_or_default();
         remote.set_metadata(metadata).await?;
         if now.key != told.key {
-            remote.seeked(Time::ZERO).await?;
+            // (a song that came back from the last run stands where it stopped)
+            remote.seeked(Time::from_micros((position * 1e6) as i64)).await?;
         }
     }
     if now.status != told.status {
@@ -195,7 +202,7 @@ pub fn start(application: &adw::Application, name: &str) {
                 continue;
             }
             expected = position;
-            if tell(&remote, &player.view(), player.duration(), &mut told).await.is_err() {
+            if tell(&remote, &player.view(), player.duration(), position, &mut told).await.is_err() {
                 break;
             }
         }
