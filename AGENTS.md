@@ -205,7 +205,7 @@ entry and icon, so a step that writes somewhere new adds that path there. It ref
 | `AMUI_CARGO`, `AMUI_DOTNET` | the `cargo` or `dotnet` the build scripts use |
 | `AMUI_RENDER_SCRIPT` | another render script instead of the patched Cavern |
 | `CAVERN_LAB_OPTIONS` | the renderer's switches instead of the engine's (see The renderer) |
-| `AMUI_LOSSLESS_MAX_RATE` | the highest ALAC sample rate fetched (48000 by default; the output runs at 48 kHz) |
+| `AMUI_LOSSLESS_MAX_RATE` | the highest ALAC sample rate the Lossless quality fetches (48000 by default; Hi-Res Lossless goes up to 192 kHz) |
 | `AMUI_SIGNIN=browser` | prefer a saved browser session over the native sign-in |
 | `AMUI_LANGUAGE` | the catalog's language (default: the desktop's `LC_ALL`, `LC_MESSAGES`, `LANG`) |
 | `LOSSLESS_PORT`, `LOSSLESS_DNS`, `LOSSLESS_CA_BUNDLE` | the wrapper service's port (12351), resolvers and CA bundle |
@@ -215,10 +215,10 @@ entry and icon, so a step that writes somewhere new adds that path there. It ref
 
 | path | what |
 |---|---|
-| `cache/media/<id>.atmos.m4a`, `.stereo.m4a`, `.lossless.m4a` | decrypted songs, least recently used go first beyond 2 GiB; `index.json` |
+| `cache/media/<id>.atmos.m4a`, `.stereo.m4a`, `.lossless.m4a`, `.hires.m4a` | decrypted songs, least recently used go first beyond 2 GiB; `index.json` |
 | `cache/pcm/<id>.<kind>/` | renders and decodes (`atmos-916.f32le` with `render-summary.json`, or 2-channel PCM); the current, next and previous are kept |
 | `cache/art/` | artwork, 256 MiB |
-| `state/player.json` | the player's settings (mode, profile, volume, fallback, Sound Check, lossless, autoplay) |
+| `state/player.json` | the player's settings (mode, profile, volume, fallback, Sound Check, quality, autoplay) |
 | `state/resume.json`, `state/resume-position.json` | the queue with its tracks' metadata, and the current song's position: what comes back at the next start (0600) |
 | `state/downmix.json`, `state/eq.json` | the downmix profile with its preamp, the equalizer |
 | `state/library/*.json` | snapshots of the library's lists (0600), shown at start-up |
@@ -297,7 +297,15 @@ while it runs it holds the account's playback lease. `amui wrapper` (the app run
 `stop`, `status`, `selftest`, `login`; `tools/lossless/wrapperctl.py` is the same in Python, used by
 the build scripts.
 
-**Decoding**: AAC and ALAC through ffmpeg into 2-channel f32 PCM.
+**Audio quality** (`quality` in `player.json`, the Sound menu's drop-down): High Quality (`aac`),
+Lossless (`lossless`, ALAC up to 48 kHz) or Hi-Res Lossless (`hires`, the rendition above 48 kHz, up
+to 192 kHz). Each version has its own entries in the caches (`<id>.lossless`, `<id>.hires`). A
+song's audio traits say what it has; a song without the version plays the next one down without a
+word, a failure of the route with a notice, and the badge and its detail say what plays. A settings
+file from before has the switch `lossless` instead, read as `lossless` or `aac`.
+
+**Decoding**: AAC and ALAC through ffmpeg into 2-channel f32 PCM at the output's 48 kHz; what comes
+at another rate is resampled with soxr, and the format detail says so.
 
 **Sound Check** (`loudness.rs`): BS.1770 integrated loudness (ffmpeg's `ebur128` while the PCM
 grows; a Rust meter for complete files, the same numbers), 16-channel renders measured through the
@@ -320,7 +328,7 @@ rewrite what the server holds instead of flushing; the feeder thread gets real-t
 through RealtimeKit when allowed. `Player::dump_recent()` writes the last 30 seconds sent as a WAV.
 
 **Player** (`player/`): one worker thread owns the queue (shuffle, repeat), prefetches the next
-song, swaps versions in place when Dolby Atmos, Lossless or the profile changes, and runs
+song, swaps versions in place when Dolby Atmos, the audio quality or the profile changes, and runs
 **Autoplay** as Apple's apps do: a continuous station seeded with the last ten songs keeps ten
 songs ahead, and waits while more than fifty queued songs are still to play. Stations play through
 `next-tracks`. The application's player keeps its queue between runs (`player/resume.rs`): at the
@@ -335,7 +343,9 @@ follows: `research/engine-api.md` and the notes of 2026-11-14 summarised in
   Songs, Playlists (sorting, grid or list), album, playlist and artist pages, Search (the library's
   matches at once from memory, `finder.rs`, Apple Music's below them), Now Playing (lyrics with the
   sung word growing, `widgets/lyrics.rs`; the artwork's glow, `widgets/glow.rs`), the queue with its
-  Autoplay switch, the Sound menu, the equalizer, Preferences (catalog region), the sign-in sheet.
+  Autoplay switch, the Sound menu (audio quality, Dolby Atmos, the Dolby Atmos downmix, the output),
+  the equalizer (presets pasted, dropped on it as files or chosen with Import File…), Preferences
+  (catalog region), the sign-in sheet.
 - Song menus: play next or later, favourite, add to library or a playlist, Go to Album, Go to
   Artist, Go to Song (its place in the library's Songs), remove from a playlist.
 - The library's lists are kept on disk (`var/state/library/`) and shown at once at start-up while

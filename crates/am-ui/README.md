@@ -56,7 +56,8 @@ take (40 by default; a few thousand show the spinners), `AMUI_DEMO_SEARCH_MS` ho
 searches take (twice that delay for Apple Music by default; a few thousand show what the library
 holds for a term before Apple Music's results) and `AMUI_SHOT_DELAY_MS` when the screenshot is
 taken. `AMUI_DEMO_SONGS=N` gives the library at least N songs (copies of its own with titles,
-albums and dates of their own), for checks of long lists.
+albums and dates of their own), for checks of long lists. `AMUI_DEMO_NO_LOSSLESS` makes it a
+machine without the lossless route (the Sound menu then says why only High Quality can be chosen).
 
 `--playing` starts the third of fifteen songs. `--song N` (0 to 14) starts another one: their
 lyrics differ (2, 4, 7, 10 and 13 have word timing, 3, 5, 11 and 14 line timing, 1, 6, 9 and 12

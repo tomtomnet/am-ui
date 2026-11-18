@@ -49,8 +49,9 @@ To update later: `git pull && ./setup.sh`.
 The first time, press **Sign In** and enter your Apple ID, your password and the six-digit code
 that Apple shows on your other devices. You sign in once per computer; your password is not kept.
 
-The **Sound** menu of the player bar has Dolby Atmos on or off, Lossless, Sound Check, the downmix
-profile (how Atmos becomes stereo), the preamp and the equalizer.
+The **Sound** menu of the player bar has the audio quality (High Quality, Lossless, Hi-Res Lossless),
+Dolby Atmos on or off, the Dolby Atmos downmix (how Atmos becomes stereo), the preamp, Sound Check
+and the equalizer, which takes presets as text or as files dropped on it.
 
 ## How it works
 
