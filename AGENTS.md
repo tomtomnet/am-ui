@@ -41,6 +41,10 @@ These hold for every change, by a person or an agent.
 - Tests that play audio run against a private audio server, never the desktop's:
   `crates/amui/tools/private-audio.sh` starts a PipeWire daemon with a null sink only.
 - Nothing changes the system's audio setup (PipeWire configuration, sinks, volumes, mute states).
+- Code that deletes files (`uninstall.sh`, clean-up steps, their tests) runs only in a sandbox where
+  all but its work folder is read-only: `bwrap --ro-bind / / --dev /dev --proc /proc --unshare-pid
+  --bind WORK WORK ...`. A private `HOME` or a throwaway clone does not protect the machine.
+  `uninstall.sh` is never run on a working install.
 - Processes you did not start are not stopped. A running am-ui (from `target/release`) keeps its
   binary: rebuilding replaces the file, the running program is unaffected.
 - `tools/cavern-lab/cavern-src/Cavern.Format/Decoders/EnhancedAC3/ObjectAudioElementMetadata.cs`
@@ -117,7 +121,7 @@ External programs, built by `setup.sh` and run by path:
 | `tools/lossless/` | the wrapper route: `build.sh`, `wrapperctl.py`, `login.sh`, `start.sh`/`stop.sh`/`status.sh`, patches, `go/amui-fairplay-rip` |
 | `workspace/` | vendored engine tool sources; everything else there is a machine's own (ignored) |
 | `research/` | notes (index below) |
-| `setup.sh`, `am-ui` | set-up script, launcher |
+| `setup.sh`, `uninstall.sh`, `am-ui` | set-up script, its counterpart, launcher |
 | `var/` | runtime data, git-ignored (below) |
 | `notes-local/` | private notes of a machine, git-ignored |
 
@@ -184,6 +188,12 @@ Options: `--check` (step 1 and the doctor, nothing else), `--no-lossless` (skip 
 cannot sign in by itself), `--no-desktop-entry` (skip step 8), `--venv` and `--no-sink` (accepted for
 older instructions, no effect). Everything else stays inside the repository folder (`var/`,
 `workspace/`, `target/`); `sudo` is never run.
+
+`uninstall.sh` undoes this: it stops the lossless service and removes the desktop entry (when it
+starts this folder), the builds and toolchains and, without `--keep-data`, the runtime data and a
+saved browser session. It removes only the paths it lists, all inside this folder apart from the
+entry and icon, so a step that writes somewhere new adds that path there. It refuses to run with
+`AMUI_VAR` set or outside an am-ui folder: a deleting script takes no path from the environment.
 
 ## Environment variables
 

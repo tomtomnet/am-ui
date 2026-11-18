@@ -86,6 +86,16 @@ also handle the sign-in.
   another device of the same account may stop.
 - To sign out: quit am-ui, then run `tools/lossless/stop.sh && rm -rf var/wrapper/rootfs/data`.
 
+## Uninstall
+
+```sh
+./uninstall.sh              # remove the menu entry, the builds, your sign-in, settings and caches
+./uninstall.sh --keep-data  # keep the sign-in, settings and caches for a later ./setup.sh
+```
+
+Quit am-ui first. The script asks before it changes anything and leaves the source code and your
+system's packages alone: delete this folder afterwards to finish.
+
 ## For developers
 
 How it is built, how to test it, the project's conventions and rules: see [AGENTS.md](AGENTS.md),
