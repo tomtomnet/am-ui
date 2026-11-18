@@ -195,7 +195,7 @@ mod imp {
             duration.set_xalign(1.0);
             duration.add_css_class("numeric");
             duration.add_css_class("dim-label");
-            let remove = gtk::Button::from_icon_name("window-close-symbolic");
+            let remove = gtk::Button::from_icon_name("am-window-close-symbolic");
             remove.add_css_class("flat");
             remove.add_css_class("circular");
             remove.add_css_class("hover-only");

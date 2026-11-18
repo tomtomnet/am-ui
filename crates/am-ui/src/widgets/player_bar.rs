@@ -102,7 +102,7 @@ pub fn build() -> gtk::Widget {
     let badge = gtk::Label::new(None);
     badge.add_css_class("format-badge");
     badge.set_valign(gtk::Align::Center);
-    let star = icon_button("non-starred-symbolic", "Favorite");
+    let star = icon_button("am-non-starred-symbolic", "Favorite");
     star.connect_clicked(|_| {
         let ctx = crate::app::ctx();
         if let Some(track) = ctx.player.track() {
@@ -130,18 +130,18 @@ pub fn build() -> gtk::Widget {
 
     // --- transport and progress
     let shuffle = gtk::ToggleButton::new();
-    shuffle.set_icon_name("media-playlist-shuffle-symbolic");
+    shuffle.set_icon_name("am-media-playlist-shuffle-symbolic");
     shuffle.add_css_class("flat");
     shuffle.add_css_class("circular");
     shuffle.set_tooltip_text(Some("Shuffle"));
     shuffle.set_valign(gtk::Align::Center);
     shuffle.set_focus_on_click(false);
-    let previous = icon_button("media-skip-backward-symbolic", "Previous");
-    let play = icon_button("media-playback-start-symbolic", "Play");
+    let previous = icon_button("am-media-skip-backward-symbolic", "Previous");
+    let play = icon_button("am-media-playback-start-symbolic", "Play");
     play.add_css_class("play-button");
-    let next = icon_button("media-skip-forward-symbolic", "Next");
+    let next = icon_button("am-media-skip-forward-symbolic", "Next");
     let repeat = gtk::ToggleButton::new();
-    repeat.set_icon_name("media-playlist-repeat-symbolic");
+    repeat.set_icon_name("am-media-playlist-repeat-symbolic");
     repeat.add_css_class("flat");
     repeat.add_css_class("circular");
     repeat.set_tooltip_text(Some("Repeat"));
@@ -214,7 +214,7 @@ pub fn build() -> gtk::Widget {
     let lyrics = view_toggle("am-lyrics-symbolic", "Lyrics", "win.now-playing");
     let queue = view_toggle("am-queue-symbolic", "Playing Next", "win.queue");
     let sound = sound_menu::button();
-    let volume_icon = gtk::Image::from_icon_name("audio-volume-high-symbolic");
+    let volume_icon = gtk::Image::from_icon_name("am-audio-volume-high-symbolic");
     let volume = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1.0, 0.05);
     volume.set_size_request(96, -1);
     volume.set_draw_value(false);
@@ -281,7 +281,7 @@ pub fn build() -> gtk::Widget {
                 badge.remove_css_class("switching");
             }
             let favorite = track.as_ref().is_some_and(|track| ctx.favorites.is_favorite(track));
-            star.set_icon_name(if favorite { "starred-symbolic" } else { "non-starred-symbolic" });
+            star.set_icon_name(if favorite { "am-starred-symbolic" } else { "am-non-starred-symbolic" });
             star.set_tooltip_text(Some(if favorite { "Undo Favorite" } else { "Favorite" }));
             star.set_visible(track.is_some());
             if favorite {
@@ -290,7 +290,7 @@ pub fn build() -> gtk::Widget {
                 star.remove_css_class("favorite");
             }
             let playing = matches!(view.state, PlayerState::Playing | PlayerState::Loading);
-            play.set_icon_name(if playing { "media-playback-pause-symbolic" } else { "media-playback-start-symbolic" });
+            play.set_icon_name(if playing { "am-media-playback-pause-symbolic" } else { "am-media-playback-start-symbolic" });
             play.set_tooltip_text(Some(if playing { "Pause" } else { "Play" }));
             for button in [&play, &previous, &next] {
                 button.set_sensitive(track.is_some());
@@ -298,19 +298,19 @@ pub fn build() -> gtk::Widget {
             shuffle.set_active(view.shuffle);
             repeat.set_active(view.repeat != RepeatMode::Off);
             repeat.set_icon_name(if view.repeat == RepeatMode::One {
-                "media-playlist-repeat-song-symbolic"
+                "am-media-playlist-repeat-song-symbolic"
             } else {
-                "media-playlist-repeat-symbolic"
+                "am-media-playlist-repeat-symbolic"
             });
             seek.set_enabled(track.is_some());
             if (volume.value() - view.volume).abs() > 0.004 {
                 volume.set_value(view.volume);
             }
             volume_icon.set_icon_name(Some(match view.volume {
-                v if v <= 0.0 => "audio-volume-muted-symbolic",
-                v if v < 0.34 => "audio-volume-low-symbolic",
-                v if v < 0.67 => "audio-volume-medium-symbolic",
-                _ => "audio-volume-high-symbolic",
+                v if v <= 0.0 => "am-audio-volume-muted-symbolic",
+                v if v < 0.34 => "am-audio-volume-low-symbolic",
+                v if v < 0.67 => "am-audio-volume-medium-symbolic",
+                _ => "am-audio-volume-high-symbolic",
             }));
         }
     };

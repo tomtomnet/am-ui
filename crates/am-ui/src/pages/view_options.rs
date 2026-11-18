@@ -371,9 +371,9 @@ impl Page {
         let scroller = self.view(view);
         self.views.set_visible_child(&scroller);
         self.button.set_icon_name(match (self.choices.views, view) {
-            (false, _) => "view-sort-descending-symbolic",
-            (true, View::Grid) => "view-grid-symbolic",
-            (true, View::List) => "view-list-symbolic",
+            (false, _) => "am-view-sort-descending-symbolic",
+            (true, View::Grid) => "am-view-grid-symbolic",
+            (true, View::List) => "am-view-list-symbolic",
         });
         self.to_top(focus);
     }

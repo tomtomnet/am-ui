@@ -33,7 +33,7 @@ pub fn build() -> PlaylistList {
     heading.set_xalign(0.0);
     heading.set_hexpand(true);
     heading.add_css_class("sidebar-heading");
-    let add = gtk::Button::from_icon_name("list-add-symbolic");
+    let add = gtk::Button::from_icon_name("am-list-add-symbolic");
     add.add_css_class("flat");
     add.add_css_class("circular");
     add.add_css_class("sidebar-add");
@@ -54,9 +54,9 @@ pub fn build() -> PlaylistList {
         };
         let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         content.append(&gtk::Image::from_icon_name(if playlist.is_favorites {
-            "starred-symbolic"
+            "am-starred-symbolic"
         } else {
-            "view-list-symbolic"
+            "am-view-list-symbolic"
         }));
         let label = gtk::Label::new(Some(&playlist.name));
         label.set_xalign(0.0);

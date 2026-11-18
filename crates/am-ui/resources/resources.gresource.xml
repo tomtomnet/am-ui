@@ -1,12 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
   <gresource prefix="/dev/amui/Music">
-    <file preprocess="xml-stripblanks">icons/scalable/actions/am-album-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/am-autoplay-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/am-explicit-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/am-lyrics-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/am-queue-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/am-radio-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/am-sound-symbolic.svg</file>
+    <file>icons/scalable/apps/dev.amui.Music.svg</file>
+    <file>icons/scalable/actions/am-album-symbolic.svg</file>
+    <file>icons/scalable/actions/am-audio-input-microphone-symbolic.svg</file>
+    <file>icons/scalable/actions/am-audio-volume-high-symbolic.svg</file>
+    <file>icons/scalable/actions/am-audio-volume-low-symbolic.svg</file>
+    <file>icons/scalable/actions/am-audio-volume-medium-symbolic.svg</file>
+    <file>icons/scalable/actions/am-audio-volume-muted-symbolic.svg</file>
+    <file>icons/scalable/actions/am-audio-x-generic-symbolic.svg</file>
+    <file>icons/scalable/actions/am-autoplay-symbolic.svg</file>
+    <file>icons/scalable/actions/am-avatar-default-symbolic.svg</file>
+    <file>icons/scalable/actions/am-document-open-recent-symbolic.svg</file>
+    <file>icons/scalable/actions/am-explicit-symbolic.svg</file>
+    <file>icons/scalable/actions/am-go-down-symbolic.svg</file>
+    <file>icons/scalable/actions/am-go-next-symbolic.svg</file>
+    <file>icons/scalable/actions/am-go-previous-symbolic.svg</file>
+    <file>icons/scalable/actions/am-list-add-symbolic.svg</file>
+    <file>icons/scalable/actions/am-lyrics-symbolic.svg</file>
+    <file>icons/scalable/actions/am-media-playback-pause-symbolic.svg</file>
+    <file>icons/scalable/actions/am-media-playback-start-symbolic.svg</file>
+    <file>icons/scalable/actions/am-media-playlist-repeat-song-symbolic.svg</file>
+    <file>icons/scalable/actions/am-media-playlist-repeat-symbolic.svg</file>
+    <file>icons/scalable/actions/am-media-playlist-shuffle-symbolic.svg</file>
+    <file>icons/scalable/actions/am-media-skip-backward-symbolic.svg</file>
+    <file>icons/scalable/actions/am-media-skip-forward-symbolic.svg</file>
+    <file>icons/scalable/actions/am-network-error-symbolic.svg</file>
+    <file>icons/scalable/actions/am-non-starred-symbolic.svg</file>
+    <file>icons/scalable/actions/am-object-select-symbolic.svg</file>
+    <file>icons/scalable/actions/am-open-menu-symbolic.svg</file>
+    <file>icons/scalable/actions/am-preferences-system-symbolic.svg</file>
+    <file>icons/scalable/actions/am-queue-symbolic.svg</file>
+    <file>icons/scalable/actions/am-radio-symbolic.svg</file>
+    <file>icons/scalable/actions/am-sound-symbolic.svg</file>
+    <file>icons/scalable/actions/am-starred-symbolic.svg</file>
+    <file>icons/scalable/actions/am-system-search-symbolic.svg</file>
+    <file>icons/scalable/actions/am-user-home-symbolic.svg</file>
+    <file>icons/scalable/actions/am-view-app-grid-symbolic.svg</file>
+    <file>icons/scalable/actions/am-view-grid-symbolic.svg</file>
+    <file>icons/scalable/actions/am-view-list-symbolic.svg</file>
+    <file>icons/scalable/actions/am-view-more-horizontal-symbolic.svg</file>
+    <file>icons/scalable/actions/am-view-more-symbolic.svg</file>
+    <file>icons/scalable/actions/am-view-sort-descending-symbolic.svg</file>
+    <file>icons/scalable/actions/am-window-close-symbolic.svg</file>
   </gresource>
 </gresources>

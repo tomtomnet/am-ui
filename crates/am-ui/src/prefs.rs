@@ -127,7 +127,7 @@ pub fn show_preferences(parent: &impl IsA<gtk::Widget>) {
 
     let page = adw::PreferencesPage::new();
     page.set_title("General");
-    page.set_icon_name(Some("preferences-system-symbolic"));
+    page.set_icon_name(Some("am-preferences-system-symbolic"));
     page.add(&playback);
     page.add(&look);
     page.add(&library);
@@ -139,7 +139,7 @@ pub fn show_preferences(parent: &impl IsA<gtk::Widget>) {
 pub fn show_about(parent: &impl IsA<gtk::Widget>) {
     let dialog = adw::AboutDialog::new();
     dialog.set_application_name("Music");
-    dialog.set_application_icon("audio-x-generic");
+    dialog.set_application_icon(crate::APP_ID);
     dialog.set_version(env!("CARGO_PKG_VERSION"));
     dialog.set_comments("A native Apple Music client for the GNOME desktop, with Dolby Atmos and lossless playback.");
     dialog.present(Some(parent));

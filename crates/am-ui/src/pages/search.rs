@@ -898,7 +898,7 @@ fn results(scope: Scope, narrow: &adw::Breakpoint, see_all: impl Fn() + 'static)
     spinner.set_valign(gtk::Align::Center);
     let empty = adw::StatusPage::new();
     let failed = adw::StatusPage::new();
-    failed.set_icon_name(Some("network-error-symbolic"));
+    failed.set_icon_name(Some("am-network-error-symbolic"));
     failed.set_title(match scope {
         Scope::Catalog => "Couldn't Search Apple Music",
         Scope::Library => "Couldn't Search Your Library",
@@ -1026,7 +1026,7 @@ pub fn page(dest: &Dest) -> adw::NavigationPage {
 
     let prompt = adw::StatusPage::new();
     prompt.add_css_class("search-prompt");
-    prompt.set_icon_name(Some("system-search-symbolic"));
+    prompt.set_icon_name(Some("am-system-search-symbolic"));
     prompt.set_description(Some("Search Apple Music and your library"));
     let content = gtk::Stack::new();
     content.set_transition_type(gtk::StackTransitionType::Crossfade);

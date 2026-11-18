@@ -188,7 +188,7 @@ impl Frame {
 
     /// Show what went wrong in place of the content, with "Try Again".
     pub fn fail(&self, title: &str, problem: &Problem) {
-        self.status("network-error-symbolic", title, &problem.message, true);
+        self.status("am-network-error-symbolic", title, &problem.message, true);
     }
 
     /// Say that what the page showed is no more.

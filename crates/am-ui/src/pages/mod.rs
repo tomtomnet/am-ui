@@ -28,10 +28,10 @@ pub struct Shell {
 /// Back and forward through the window's history.
 fn history_buttons() -> gtk::Box {
     let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    let back = gtk::Button::from_icon_name("go-previous-symbolic");
+    let back = gtk::Button::from_icon_name("am-go-previous-symbolic");
     back.set_tooltip_text(Some("Back"));
     back.connect_clicked(|_| ctx().nav.back());
-    let forward = gtk::Button::from_icon_name("go-next-symbolic");
+    let forward = gtk::Button::from_icon_name("am-go-next-symbolic");
     forward.set_tooltip_text(Some("Forward"));
     forward.connect_clicked(|_| ctx().nav.forward());
     buttons.append(&back);

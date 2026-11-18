@@ -113,7 +113,7 @@ mod imp {
             explicit.add_css_class("dim-label");
             explicit.set_tooltip_text(Some("Explicit"));
             explicit.set_visible(false);
-            let more = gtk::Button::from_icon_name("view-more-horizontal-symbolic");
+            let more = gtk::Button::from_icon_name("am-view-more-horizontal-symbolic");
             more.add_css_class("flat");
             more.add_css_class("circular");
             more.add_css_class("hover-only");

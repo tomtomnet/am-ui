@@ -220,7 +220,7 @@ fn header(page: &ArtistPage) -> (Hero, gtk::Label) {
     }
     let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     buttons.add_css_class("hero-actions");
-    let play = detail::pill("media-playback-start-symbolic", "Play");
+    let play = detail::pill("am-media-playback-start-symbolic", "Play");
     play.set_sensitive(page.top_songs.iter().any(Track::playable));
     let songs = page.top_songs.clone();
     play.connect_clicked(move |_| {

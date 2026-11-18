@@ -229,7 +229,7 @@ mod imp {
             NowPlaying {
                 glow: Glow::new(),
                 header: adw::HeaderBar::new(),
-                close: gtk::Button::from_icon_name("go-down-symbolic"),
+                close: gtk::Button::from_icon_name("am-go-down-symbolic"),
                 title: label("np-title"),
                 artist: label("np-artist"),
                 badge: label("format-badge"),

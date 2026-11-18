@@ -64,7 +64,7 @@ pub fn with_states(kind: Kind, content: &impl IsA<gtk::Widget>, empty_title: &st
     empty.set_description(Some(empty_text));
     stack.add_named(&empty, Some("empty"));
     let failed = adw::StatusPage::new();
-    failed.set_icon_name(Some("network-error-symbolic"));
+    failed.set_icon_name(Some("am-network-error-symbolic"));
     failed.set_title("Couldn't Load Your Library");
     let again = gtk::Button::with_label("Try Again");
     again.add_css_class("pill");
@@ -76,7 +76,7 @@ pub fn with_states(kind: Kind, content: &impl IsA<gtk::Widget>, empty_title: &st
     failed.set_child(Some(&again));
     stack.add_named(&failed, Some("failed"));
     let signed_out = adw::StatusPage::new();
-    signed_out.set_icon_name(Some("avatar-default-symbolic"));
+    signed_out.set_icon_name(Some("am-avatar-default-symbolic"));
     signed_out.set_title("Sign In to Apple Music");
     signed_out.set_description(Some("Your library appears here once you are signed in."));
     let sign_in = gtk::Button::with_label("Sign In");

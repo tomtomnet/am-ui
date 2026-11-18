@@ -190,6 +190,7 @@ fn load_style() {
     let Some(display) = gtk::gdk::Display::default() else { return };
     // the application's own icons (resources/icons, packed into the program)
     gtk::IconTheme::for_display(&display).add_resource_path("/dev/amui/Music/icons");
+    gtk::Window::set_default_icon_name(crate::APP_ID);
     let style = gtk::CssProvider::new();
     style.load_from_string(include_str!("style.css"));
     gtk::style_context_add_provider_for_display(&display, &style, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);

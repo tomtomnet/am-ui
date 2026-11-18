@@ -284,7 +284,7 @@ impl View {
         self.generation.set(self.generation.get() + 1);
         self.shown.replace(None);
         self.parts.replace(None);
-        self.frame.gone("view-list-symbolic", "Playlist Deleted", "This playlist is no longer in your library.");
+        self.frame.gone("am-view-list-symbolic", "Playlist Deleted", "This playlist is no longer in your library.");
         let ctx = ctx();
         if ctx.nav.current().as_ref() == Some(&self.dest) {
             ctx.nav.back();
@@ -531,7 +531,7 @@ impl View {
         let cover = Cover::new(PICTURE.0);
         match item {
             Item::Playlist(playlist) => {
-                cover.set_blank(Blank::Icon("audio-x-generic-symbolic"));
+                cover.set_blank(Blank::Icon("am-audio-x-generic-symbolic"));
                 match &playlist.artwork {
                     Some(artwork) => cover.set_artworks(std::slice::from_ref(artwork)),
                     None => cover.set_artworks(&mosaic(collection.tracks.iter().map(|track| track.artwork.as_ref()))),
@@ -624,8 +624,8 @@ impl View {
     fn buttons(self: &Rc<Self>, collection: &Collection) -> gtk::Box {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
         row.add_css_class("hero-actions");
-        let play = detail::pill("media-playback-start-symbolic", "Play");
-        let shuffle = detail::pill("media-playlist-shuffle-symbolic", "Shuffle");
+        let play = detail::pill("am-media-playback-start-symbolic", "Play");
+        let shuffle = detail::pill("am-media-playlist-shuffle-symbolic", "Shuffle");
         let has_songs = !collection.tracks.is_empty() || collection.next_offset.is_some();
         for (button, shuffled) in [(&play, false), (&shuffle, true)] {
             button.set_sensitive(has_songs);
@@ -651,8 +651,8 @@ impl View {
         };
         let added = ADDED.with(|added| added.borrow().contains(&item.key()))
             || (!in_library && catalog_id.as_deref().is_some_and(|id| library_has(list, id)));
-        let add = detail::round("list-add-symbolic", "Add to Library");
-        let mark = gtk::Image::from_icon_name("object-select-symbolic");
+        let add = detail::round("am-list-add-symbolic", "Add to Library");
+        let mark = gtk::Image::from_icon_name("am-object-select-symbolic");
         mark.add_css_class("hero-mark");
         mark.set_tooltip_text(Some("In Your Library"));
         mark.update_property(&[gtk::accessible::Property::Label("In Your Library")]);
@@ -681,7 +681,7 @@ impl View {
         row.append(&add);
         row.append(&mark);
 
-        let more = detail::round("view-more-horizontal-symbolic", "More");
+        let more = detail::round("am-view-more-horizontal-symbolic", "More");
         let item = item.clone();
         more.connect_clicked(move |button| crate::menus::item_menu(&item, button, 0.0, button.height() as f64 + 4.0));
         row.append(&more);

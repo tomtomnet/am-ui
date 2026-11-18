@@ -93,7 +93,7 @@ mod imp {
             year.set_xalign(1.0);
             year.add_css_class("numeric");
             year.add_css_class("dim-label");
-            let more = gtk::Button::from_icon_name("view-more-horizontal-symbolic");
+            let more = gtk::Button::from_icon_name("am-view-more-horizontal-symbolic");
             more.add_css_class("flat");
             more.add_css_class("circular");
             more.add_css_class("hover-only");

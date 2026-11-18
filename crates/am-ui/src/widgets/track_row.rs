@@ -216,8 +216,8 @@ mod imp {
                 explicit,
                 line,
                 album,
-                star: button("non-starred-symbolic", "Favorite"),
-                more: button("view-more-horizontal-symbolic", "More"),
+                star: button("am-non-starred-symbolic", "Favorite"),
+                more: button("am-view-more-horizontal-symbolic", "More"),
                 duration,
                 hover: Cell::new(false),
                 playing: Cell::new(false),
@@ -645,7 +645,7 @@ impl TrackRow {
     pub fn set_favorite(&self, favorite: bool) {
         let imp = self.imp();
         imp.favorite.set(favorite);
-        imp.star.set_icon_name(if favorite { "starred-symbolic" } else { "non-starred-symbolic" });
+        imp.star.set_icon_name(if favorite { "am-starred-symbolic" } else { "am-non-starred-symbolic" });
         imp.star.set_tooltip_text(Some(if favorite { "Undo Favorite" } else { "Favorite" }));
         if favorite {
             imp.star.remove_css_class("hover-only");

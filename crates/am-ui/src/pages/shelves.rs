@@ -250,7 +250,7 @@ pub fn page(dest: &Dest) -> adw::NavigationPage {
     empty.set_description(Some("Apple Music has nothing for this page right now."));
 
     let failed = adw::StatusPage::new();
-    failed.set_icon_name(Some("network-error-symbolic"));
+    failed.set_icon_name(Some("am-network-error-symbolic"));
     failed.set_title(&format!("Couldn't Load {}", dest.title()));
     let again = gtk::Button::with_label("Try Again");
     again.add_css_class("pill");
@@ -258,7 +258,7 @@ pub fn page(dest: &Dest) -> adw::NavigationPage {
     failed.set_child(Some(&again));
 
     let signed_out = adw::StatusPage::new();
-    signed_out.set_icon_name(Some("avatar-default-symbolic"));
+    signed_out.set_icon_name(Some("am-avatar-default-symbolic"));
     signed_out.set_title("Sign In to Apple Music");
     signed_out.set_description(Some(match dest {
         Dest::New => "What is new on Apple Music appears here once you are signed in.",

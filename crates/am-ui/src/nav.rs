@@ -82,15 +82,15 @@ impl Dest {
 
     pub fn icon(&self) -> &'static str {
         match self {
-            Dest::Home => "user-home-symbolic",
-            Dest::New => "view-app-grid-symbolic",
+            Dest::Home => "am-user-home-symbolic",
+            Dest::New => "am-view-app-grid-symbolic",
             Dest::Radio => "am-radio-symbolic",
-            Dest::Recent => "document-open-recent-symbolic",
-            Dest::Artists | Dest::Artist(_) => "audio-input-microphone-symbolic",
+            Dest::Recent => "am-document-open-recent-symbolic",
+            Dest::Artists | Dest::Artist(_) => "am-audio-input-microphone-symbolic",
             Dest::Albums | Dest::Album(_) => "am-album-symbolic",
-            Dest::Songs => "audio-x-generic-symbolic",
-            Dest::Playlists | Dest::Playlist(_) => "view-list-symbolic",
-            Dest::Search => "system-search-symbolic",
+            Dest::Songs => "am-audio-x-generic-symbolic",
+            Dest::Playlists | Dest::Playlist(_) => "am-view-list-symbolic",
+            Dest::Search => "am-system-search-symbolic",
         }
     }
 }

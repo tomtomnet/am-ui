@@ -481,7 +481,7 @@ impl Row {
         let spark = EqGraph::new(Kind::Spark);
         spark.set_valign(gtk::Align::Center);
         row.add_prefix(&spark);
-        let check = gtk::Image::from_icon_name("object-select-symbolic");
+        let check = gtk::Image::from_icon_name("am-object-select-symbolic");
         check.add_css_class("accent");
         check.update_property(&[gtk::accessible::Property::Label("Active")]);
         row.add_suffix(&check);
@@ -516,7 +516,7 @@ impl Row {
         model.append_section(None, &section);
         row.insert_action_group("preset", Some(&actions));
         let menu = gtk::MenuButton::new();
-        menu.set_icon_name("view-more-symbolic");
+        menu.set_icon_name("am-view-more-symbolic");
         menu.set_tooltip_text(Some("More"));
         menu.set_menu_model(Some(&model));
         menu.add_css_class("flat");
