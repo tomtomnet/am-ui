@@ -5,11 +5,19 @@
 //! Every method blocks (the state file, the output's programs) and is called on worker threads
 //! (`signal::background`).
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use amui::downmix::{self, Controls};
 pub use amui::eq::{EqError, Preset, Snapshot};
 use amui::eq::{Equalizer, LiveState};
+use gtk::gio;
+use gtk::prelude::*;
+
+/// The largest file taken for a preset: far more than any of the formats needs.
+pub const PRESET_FILE_MAX_BYTES: usize = 1024 * 1024;
+/// How many files that could not be imported are named one by one.
+const NAMED_FAILURES: usize = 3;
 
 pub trait EqualizerService: Send + Sync + 'static {
     /// What is saved: the presets in their order, which of them is active, on or off. It is read
@@ -22,6 +30,8 @@ pub trait EqualizerService: Send + Sync + 'static {
     /// Store EqualizerAPO / AutoEQ / PEQdB text as a new preset, the last of the list. The error
     /// names the line that is not understood.
     fn add(&self, name: &str, text: &str) -> Result<Preset, EqError>;
+    /// The same for the text of a file: `name` is the file's, made different from the presets'.
+    fn add_file(&self, name: &str, text: &str) -> Result<Preset, EqError>;
     fn rename(&self, id: &str, name: &str) -> Result<(), EqError>;
     /// Put a preset at `index` of the list.
     fn move_to(&self, id: &str, index: usize) -> Result<(), EqError>;
@@ -37,6 +47,119 @@ pub trait EqualizerService: Send + Sync + 'static {
 pub fn signed(db: f64) -> String {
     let rounded = (db * 10.0).round() / 10.0 + 0.0;
     format!("{rounded:+.1}")
+}
+
+// --- presets from files ----------------------------------------------------------------------
+
+/// What a preset from a file is called: the file's name without its extension.
+pub fn preset_name(file_name: &str) -> String {
+    let path = Path::new(file_name);
+    path.file_stem().unwrap_or(path.as_os_str()).to_string_lossy().into_owned()
+}
+
+/// The text of a preset file: UTF-8 (with or without its mark), UTF-16 with its mark, or any other
+/// 8-bit encoding (a comment in one does no harm: only the ASCII parts are read). `None` for what
+/// is not text.
+pub fn preset_text(bytes: &[u8]) -> Option<String> {
+    let utf16 = |rest: &[u8], unit: fn([u8; 2]) -> u16| {
+        let units: Vec<u16> = rest.as_chunks::<2>().0.iter().map(|pair| unit(*pair)).collect();
+        String::from_utf16(&units).ok()
+    };
+    match bytes {
+        [0xef, 0xbb, 0xbf, rest @ ..] => String::from_utf8(rest.to_vec()).ok(),
+        [0xff, 0xfe, rest @ ..] => utf16(rest, u16::from_le_bytes),
+        [0xfe, 0xff, rest @ ..] => utf16(rest, u16::from_be_bytes),
+        _ if bytes.contains(&0) => None,
+        _ => Some(match std::str::from_utf8(bytes) {
+            Ok(text) => text.to_string(),
+            Err(_) => bytes.iter().map(|byte| char::from(*byte)).collect(),
+        }),
+    }
+}
+
+/// What a file holds, at most `PRESET_FILE_MAX_BYTES`. Blocks: for a worker thread.
+fn read_file(file: &gio::File) -> Result<Vec<u8>, String> {
+    if file.query_file_type(gio::FileQueryInfoFlags::NONE, gio::Cancellable::NONE) == gio::FileType::Directory {
+        return Err("it is a folder".to_string());
+    }
+    let reason = |error: gtk::glib::Error| error.message().to_string();
+    let stream = file.read(gio::Cancellable::NONE).map_err(reason)?;
+    let mut bytes = Vec::new();
+    loop {
+        let chunk = stream.read_bytes(64 * 1024, gio::Cancellable::NONE).map_err(reason)?;
+        if chunk.is_empty() {
+            return Ok(bytes);
+        }
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() > PRESET_FILE_MAX_BYTES {
+            return Err(format!("it is larger than {} MiB", PRESET_FILE_MAX_BYTES / (1024 * 1024)));
+        }
+    }
+}
+
+/// Why text is no preset, short enough for a message that also names the file: the parser's
+/// reason without the line it quotes.
+fn parse_problem(error: &EqError) -> String {
+    let text = error.to_string();
+    let mut parts = text.splitn(3, ": ");
+    match (error.line(), parts.next(), parts.next(), parts.next()) {
+        (Some(_), Some(line), Some(reason), Some(_quoted)) => format!("{line}: {reason}"),
+        _ => text,
+    }
+}
+
+/// One file into a preset, by the parser pasted text goes through.
+fn import_file(service: &dyn EqualizerService, name: &str, file: &gio::File) -> Result<Preset, String> {
+    let bytes = read_file(file)?;
+    let text = preset_text(&bytes).ok_or("it is not a text file")?;
+    let (preamp, filters) = amui::eq::parse(&text).map_err(|error| parse_problem(&error))?;
+    if filters.is_empty() && preamp == 0.0 {
+        return Err("it has no Preamp or Filter lines".to_string());
+    }
+    service.add_file(&preset_name(name), &text).map_err(|error| error.to_string())
+}
+
+/// What became of some files: the names of the presets they gave, and each other file's name with
+/// what is wrong with it.
+#[derive(Debug, Default, PartialEq)]
+pub struct FileImport {
+    pub added: Vec<String>,
+    pub failed: Vec<(String, String)>,
+}
+
+impl FileImport {
+    /// What to tell the user, one message per line of news.
+    pub fn messages(&self) -> Vec<String> {
+        let mut messages = Vec::new();
+        match self.added.as_slice() {
+            [] => {}
+            [name] => messages.push(format!("“{name}” added")),
+            names => messages.push(format!("{} presets added", names.len())),
+        }
+        for (name, reason) in self.failed.iter().take(NAMED_FAILURES) {
+            messages.push(format!("“{name}” was not imported: {reason}"));
+        }
+        match self.failed.len().saturating_sub(NAMED_FAILURES) {
+            0 => {}
+            1 => messages.push("1 more file was not imported".to_string()),
+            more => messages.push(format!("{more} more files were not imported")),
+        }
+        messages
+    }
+}
+
+/// Turn files into presets, each on its own: one that cannot be read or parsed does not keep the
+/// others out. Blocks: for a worker thread.
+pub fn import_files(service: &dyn EqualizerService, files: &[gio::File]) -> FileImport {
+    let mut outcome = FileImport::default();
+    for file in files {
+        let name = file.basename().map_or_else(|| file.uri().to_string(), |name| name.to_string_lossy().into_owned());
+        match import_file(service, &name, file) {
+            Ok(preset) => outcome.added.push(preset.name),
+            Err(reason) => outcome.failed.push((name, reason)),
+        }
+    }
+    outcome
 }
 
 // --- the changes on the engine's equalizer -------------------------------------------------
@@ -227,6 +350,10 @@ impl EqualizerService for DemoEqualizer {
         self.equalizer.add_preset(name, text, "pasted")
     }
 
+    fn add_file(&self, name: &str, text: &str) -> Result<Preset, EqError> {
+        self.equalizer.add_file_preset(name, text)
+    }
+
     fn rename(&self, id: &str, name: &str) -> Result<(), EqError> {
         self.equalizer.rename_preset(id, name).map(drop)
     }
@@ -349,6 +476,99 @@ mod tests {
         assert_eq!(demo.rename("no-such-preset", "Sample: Nobody"), Err(EqError::Other("no such preset".to_string())));
         // none of that was applied
         assert_eq!(applied(&demo), (5, -4.5));
+    }
+
+    const PEQ_FILE: &str = "Preamp: -6.1 dB\nFilter 1: ON PK Fc 105 Hz Gain -2.6 dB Q 0.70\n";
+
+    /// A file in `folder` with these bytes.
+    fn file(folder: &tempfile::TempDir, name: &str, bytes: &[u8]) -> gio::File {
+        let path = folder.path().join(name);
+        std::fs::write(&path, bytes).unwrap();
+        gio::File::for_path(path)
+    }
+
+    #[test]
+    fn a_preset_is_named_after_its_file() {
+        assert_eq!(preset_name("PEQdB-Headphone A.txt"), "PEQdB-Headphone A");
+        assert_eq!(preset_name("Headphone B ParametricEQ.txt"), "Headphone B ParametricEQ");
+        assert_eq!(preset_name("two.dots.txt"), "two.dots");
+        assert_eq!(preset_name("no-extension"), "no-extension");
+        assert_eq!(preset_name(".hidden"), ".hidden");
+    }
+
+    #[test]
+    fn the_text_of_a_file_is_read_in_the_usual_encodings() {
+        let wanted = "Preamp: -1 dB # é";
+        assert_eq!(preset_text(wanted.as_bytes()).as_deref(), Some(wanted));
+        let mark = [&[0xef, 0xbb, 0xbf], wanted.as_bytes()].concat();
+        assert_eq!(preset_text(&mark).as_deref(), Some(wanted));
+        let little: Vec<u8> =
+            [0xfeff_u16].into_iter().chain(wanted.encode_utf16()).flat_map(u16::to_le_bytes).collect();
+        assert_eq!(preset_text(&little).as_deref(), Some(wanted));
+        let big: Vec<u8> = [0xfeff_u16].into_iter().chain(wanted.encode_utf16()).flat_map(u16::to_be_bytes).collect();
+        assert_eq!(preset_text(&big).as_deref(), Some(wanted));
+        assert_eq!(preset_text(b"Preamp: -1 dB # caf\xe9").as_deref(), Some("Preamp: -1 dB # café"), "Latin-1");
+        assert_eq!(preset_text(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"), None, "a picture");
+    }
+
+    #[test]
+    fn files_become_presets_and_a_bad_one_keeps_no_other_out() {
+        let folder = tempfile::tempdir().unwrap();
+        let demo = DemoEqualizer::new(DemoStart::Empty);
+        let files = [
+            file(&folder, "Good One.txt", PEQ_FILE.as_bytes()),
+            file(&folder, "Broken.txt", b"Preamp: -1 dB\nthis is no filter\n"),
+            file(&folder, "Picture.png", b"\x89PNG\0\0"),
+            file(&folder, "Empty.txt", b"# nothing here\n\n"),
+            file(&folder, "Too Long.txt", &vec![b'#'; PRESET_FILE_MAX_BYTES + 1]),
+            gio::File::for_path(folder.path().join("Missing.txt")),
+            gio::File::for_path(folder.path()),
+            file(&folder, "Second.cfg", PEQ_FILE.as_bytes()),
+        ];
+        let imported = import_files(&demo, &files);
+        assert_eq!(imported.added, ["Good One", "Second"]);
+        assert_eq!(names(&demo), ["Good One", "Second"]);
+        assert!(demo.snapshot().presets.iter().all(|preset| preset.source == "file" && preset.filters.len() == 1));
+        let failed: Vec<&str> = imported.failed.iter().map(|(name, _)| name.as_str()).collect();
+        let folder_name = folder.path().file_name().unwrap().to_str().unwrap();
+        assert_eq!(failed, ["Broken.txt", "Picture.png", "Empty.txt", "Too Long.txt", "Missing.txt", folder_name]);
+        assert_eq!(imported.failed[0].1, "line 2: not a Preamp or Filter line");
+        assert_eq!(imported.failed[1].1, "it is not a text file");
+        assert_eq!(imported.failed[2].1, "it has no Preamp or Filter lines");
+        assert_eq!(imported.failed[3].1, "it is larger than 1 MiB");
+        assert!(imported.failed[4].1.to_lowercase().contains("no such file"), "{}", imported.failed[4].1);
+        assert_eq!(imported.failed[5].1, "it is a folder");
+        // the same file again is a preset of its own
+        let again = import_files(&demo, &files[..1]);
+        assert_eq!(again, FileImport { added: vec!["Good One 2".to_string()], failed: Vec::new() });
+    }
+
+    #[test]
+    fn the_reason_for_a_message_leaves_out_the_quoted_line() {
+        let reason = |text: &str| parse_problem(&amui::eq::parse(text).unwrap_err());
+        assert_eq!(reason("Preamp: 1 dB\nnonsense: with a colon"), "line 2: not a Preamp or Filter line");
+        assert_eq!(reason("Filter 1: ON PK Fc 5 Hz Gain 1 dB Q 1"), "line 1: values out of range");
+        assert_eq!(reason("Preamp: -50 dB"), "preamp out of range");
+    }
+
+    #[test]
+    fn what_an_import_tells_names_the_files() {
+        let told = |added: &[&str], failed: &[&str]| {
+            FileImport {
+                added: added.iter().map(|name| name.to_string()).collect(),
+                failed: failed.iter().map(|name| (name.to_string(), "no good".to_string())).collect(),
+            }
+            .messages()
+        };
+        assert_eq!(told(&["A"], &[]), ["“A” added"]);
+        assert_eq!(told(&["A", "B"], &[]), ["2 presets added"]);
+        assert_eq!(told(&[], &["a.txt"]), ["“a.txt” was not imported: no good"]);
+        assert_eq!(told(&["A"], &["b.txt"]), ["“A” added", "“b.txt” was not imported: no good"]);
+        let many = told(&[], &["1", "2", "3", "4"]);
+        assert_eq!(many.len(), 4);
+        assert_eq!(many[3], "1 more file was not imported");
+        assert_eq!(told(&[], &["1", "2", "3", "4", "5"])[3], "2 more files were not imported");
+        assert!(told(&[], &[]).is_empty());
     }
 
     #[test]

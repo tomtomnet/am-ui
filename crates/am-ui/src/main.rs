@@ -17,8 +17,8 @@
 //!   am-ui --paused               pause that song as soon as it plays
 //!   am-ui --now-playing, --queue start with those views open
 //!   am-ui --show NAME            start with a dialog open (preferences, shortcuts, about, new-playlist,
-//!                                sign-in, sign-in-code, equalizer, equalizer-add, equalizer-menu,
-//!                                view-options...)
+//!                                sign-in, sign-in-code, sound, equalizer, equalizer-add,
+//!                                equalizer-menu, equalizer-drop, view-options...)
 //!   am-ui --signed-out           the demonstration without a sign-in
 //!   am-ui --search TERM          start with TERM in the search field and what it finds on the Search page
 //!   am-ui --search-scope NAME    which results that page shows first (apple-music, library)

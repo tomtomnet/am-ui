@@ -1,5 +1,6 @@
 //! The Equalizer dialog: an on/off switch, the frequency response of the active preset, and the
-//! presets (make one active, rename, move, delete, paste a new one).
+//! presets (make one active, rename, move, delete, paste a new one, or bring in files: dropped
+//! anywhere on the dialog, or chosen with "Import File…").
 //!
 //! What the dialog shows is a `View` made on a worker thread from what is saved; the widgets are
 //! only ever set from one. The user's changes run one after the other, in the order they were
@@ -17,7 +18,7 @@ use amui::eq;
 use gtk::{gdk, gio, glib, pango};
 
 use crate::app::ctx;
-use crate::equalizer::{EqError, EqualizerService, Preset, Snapshot, signed};
+use crate::equalizer::{EqError, EqualizerService, Preset, Snapshot, import_files, signed};
 use crate::signal::background;
 use crate::widgets::eq_graph::{EqGraph, Kind};
 
@@ -38,7 +39,7 @@ struct RowView {
     name: String,
     /// "15 filters · Preamp -10.4 dB".
     detail: String,
-    /// Where it is from: "Pasted", "Sample"; empty when that says nothing.
+    /// Where it is from: "Pasted", "From File", "Sample"; empty when that says nothing.
     source: String,
     /// Its response, for the sparkline.
     spark: Vec<f32>,
@@ -79,6 +80,7 @@ fn sentence(text: &str) -> String {
 fn source_label(source: &str) -> String {
     match source {
         "pasted" => "Pasted".to_string(),
+        "file" => "From File".to_string(),
         "bridge" => String::new(),
         "sample" => "Sample".to_string(),
         other => sentence(other),
@@ -170,8 +172,8 @@ fn pasted(text: &str) -> Pasted {
 /// What a job brings back from its worker thread.
 struct Report {
     view: View,
-    /// Something to tell the user: what failed, or what an import found.
-    said: Option<String>,
+    /// What to tell the user: what failed, or what an import found.
+    said: Vec<String>,
     failed: bool,
 }
 
@@ -189,6 +191,8 @@ struct Panel {
     graph: EqGraph,
     /// The line about the sink under the graph; hidden when the service has nothing to say.
     note: gtk::Label,
+    /// Shows that files can be dropped, while some are dragged over the dialog.
+    drop_zone: gtk::Box,
     scroller: gtk::ScrolledWindow,
     list: gtk::ListBox,
     empty: adw::StatusPage,
@@ -237,7 +241,7 @@ impl Panel {
             move || work(service.as_ref()),
             move |report| {
                 panel.show(report.view);
-                if let Some(message) = &report.said {
+                for message in &report.said {
                     panel.say(message);
                 }
                 then(&panel, !report.failed);
@@ -249,7 +253,7 @@ impl Panel {
     /// Look at what is saved again; nothing is changed.
     fn refresh(self: &Rc<Self>, then: impl FnOnce(&Rc<Panel>) + 'static) {
         self.submit(
-            Box::new(|service| Report { view: View::of(service), said: None, failed: false }),
+            Box::new(|service| Report { view: View::of(service), said: Vec::new(), failed: false }),
             Box::new(move |panel, _| then(panel)),
         );
     }
@@ -275,8 +279,8 @@ impl Panel {
             let outcome = work(service);
             let view = View::of(service);
             match outcome {
-                Ok(said) => Report { view, said, failed: false },
-                Err(error) => Report { view, said: Some(format!("{what}: {error}")), failed: true },
+                Ok(said) => Report { view, said: said.into_iter().collect(), failed: false },
+                Err(error) => Report { view, said: vec![format!("{what}: {error}")], failed: true },
             }
         };
         self.submit(Box::new(work), Box::new(then));
@@ -355,6 +359,54 @@ impl Panel {
             let index =
                 order.iter().position(|known| *known == id).ok_or(EqError::Other("no such preset".to_string()))?;
             service.move_to(&id, if up { index.saturating_sub(1) } else { index + 1 }).map(|()| None)
+        });
+    }
+
+    /// Files as new presets, read and parsed on a worker thread. `leave_page`: back to the
+    /// list of presets when any of them came through.
+    fn import_files(self: &Rc<Self>, files: Vec<gio::File>, leave_page: bool) {
+        if files.is_empty() {
+            return;
+        }
+        self.submit(
+            Box::new(move |service| {
+                let imported = import_files(service, &files);
+                Report { view: View::of(service), said: imported.messages(), failed: imported.added.is_empty() }
+            }),
+            Box::new(move |panel, added| {
+                if added && leave_page {
+                    panel.pages.pop();
+                }
+            }),
+        );
+    }
+
+    /// Ask for files to import.
+    fn choose_files(self: &Rc<Self>, leave_page: bool) {
+        let text = gtk::FileFilter::new();
+        text.set_name(Some("Text Files"));
+        text.add_mime_type("text/plain");
+        text.add_suffix("txt");
+        let everything = gtk::FileFilter::new();
+        everything.set_name(Some("All Files"));
+        everything.add_pattern("*");
+        let filters = gio::ListStore::new::<gtk::FileFilter>();
+        filters.append(&text);
+        filters.append(&everything);
+        let dialog = gtk::FileDialog::builder().title("Import Presets").modal(true).filters(&filters).build();
+        let window = self.pages.root().and_downcast::<gtk::Window>();
+        let weak = Rc::downgrade(self);
+        dialog.open_multiple(window.as_ref(), gio::Cancellable::NONE, move |chosen| {
+            let Some(panel) = weak.upgrade() else { return };
+            match chosen {
+                Ok(chosen) => {
+                    let files = (0..chosen.n_items()).filter_map(|at| chosen.item(at).and_downcast()).collect();
+                    panel.import_files(files, leave_page);
+                }
+                Err(error) if error.matches(gtk::DialogError::Dismissed) => {}
+                Err(error) if error.matches(gtk::DialogError::Cancelled) => {}
+                Err(error) => panel.say(&format!("Import File: {}", error.message())),
+            }
         });
     }
 
@@ -650,8 +702,17 @@ impl AddPage {
 
         let add = gtk::Button::with_label("Add");
         add.add_css_class("suggested-action");
+        let import = gtk::Button::with_label("Import File…");
+        import.set_tooltip_text(Some("Add presets from EqualizerAPO, AutoEQ or PEQdB files"));
+        let weak = Rc::downgrade(panel);
+        import.connect_clicked(move |_| {
+            if let Some(panel) = weak.upgrade() {
+                panel.choose_files(true);
+            }
+        });
         let header = adw::HeaderBar::new();
         header.pack_end(&add);
+        header.pack_end(&import);
         let view = adw::ToolbarView::new();
         view.add_top_bar(&header);
         view.set_content(Some(&content));
@@ -836,7 +897,66 @@ impl AddPage {
 
 // --- opening it --------------------------------------------------------------------------------
 
+/// The files a drop brought: a list of them, or a single one.
+fn dropped_files(value: &glib::Value) -> Vec<gio::File> {
+    if let Ok(files) = value.get::<gdk::FileList>() {
+        files.files()
+    } else {
+        value.get::<gio::File>().into_iter().collect()
+    }
+}
+
+/// What lies over the dialog while files are dragged over it.
+fn drop_zone() -> gtk::Box {
+    let hint = gtk::Label::new(Some("Drop Files to Add Them as Presets"));
+    hint.set_wrap(true);
+    hint.set_justify(gtk::Justification::Center);
+    let zone = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    zone.add_css_class("eq-drop-zone");
+    zone.set_valign(gtk::Align::Fill);
+    zone.set_halign(gtk::Align::Fill);
+    hint.set_valign(gtk::Align::Center);
+    hint.set_halign(gtk::Align::Center);
+    hint.set_vexpand(true);
+    zone.append(&hint);
+    // it only shows: the drop goes to the dialog under it
+    zone.set_can_target(false);
+    zone.set_visible(false);
+    zone
+}
+
+/// Take files dropped anywhere on `area`, which shows the panel's drop zone meanwhile. The target
+/// looks first, so that a field of the page does not take a file for its name as text.
+fn accept_drops(panel: &Rc<Panel>, area: &gtk::Overlay) -> gtk::DropTarget {
+    let target = gtk::DropTarget::new(glib::Type::INVALID, gdk::DragAction::COPY);
+    target.set_types(&[gdk::FileList::static_type(), gio::File::static_type()]);
+    target.set_propagation_phase(gtk::PropagationPhase::Capture);
+    let zone = panel.drop_zone.downgrade();
+    target.connect_current_drop_notify(move |target| {
+        if let Some(zone) = zone.upgrade() {
+            zone.set_visible(target.current_drop().is_some());
+        }
+    });
+    let weak = Rc::downgrade(panel);
+    target.connect_drop(move |_, value, _, _| {
+        let files = dropped_files(value);
+        let Some(panel) = weak.upgrade().filter(|_| !files.is_empty()) else { return false };
+        panel.import_files(files, false);
+        true
+    });
+    area.add_controller(target.clone());
+    target
+}
+
 fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
+    let (dialog, panel, _) = build(ctx().equalizer.clone());
+    dialog.present(Some(parent));
+    panel.refresh(|_| {});
+    panel
+}
+
+/// The dialog on `service`, not shown yet; and what takes the files dropped on it.
+fn build(service: Arc<dyn EqualizerService>) -> (adw::Dialog, Rc<Panel>, gtk::DropTarget) {
     // --- the header: the active preset under the title, and the switch
     let title = adw::WindowTitle::new("Equalizer", "");
     let switch = gtk::Switch::new();
@@ -877,9 +997,13 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
     heading.add_css_class("heading");
     heading.set_xalign(0.0);
     heading.set_hexpand(true);
+    let import = gtk::Button::with_label("Import File…");
+    import.add_css_class("flat");
+    import.set_tooltip_text(Some("Add presets from EqualizerAPO, AutoEQ or PEQdB files; they can be dropped here too"));
     let add = gtk::Button::with_label("Add Preset…");
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     bar.append(&heading);
+    bar.append(&import);
     bar.append(&add);
     bar.set_margin_top(8);
     bar.set_margin_start(22);
@@ -904,7 +1028,7 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
     let empty = adw::StatusPage::new();
     empty.set_icon_name(Some("am-sound-symbolic"));
     empty.set_title("No Presets");
-    empty.set_description(Some("Paste one from AutoEQ, EqualizerAPO or PEQdB."));
+    empty.set_description(Some("Paste one from AutoEQ, EqualizerAPO or PEQdB, or drop its file here."));
     empty.add_css_class("compact");
     empty.set_vexpand(true);
     empty.set_visible(false);
@@ -921,8 +1045,12 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
     view.set_content(Some(&content));
     let pages = adw::NavigationView::new();
     pages.add(&adw::NavigationPage::builder().title("Equalizer").child(&view).build());
+    let drop_zone = drop_zone();
+    let droppable = gtk::Overlay::new();
+    droppable.set_child(Some(&pages));
+    droppable.add_overlay(&drop_zone);
     let toasts = adw::ToastOverlay::new();
-    toasts.set_child(Some(&pages));
+    toasts.set_child(Some(&droppable));
     let dialog = adw::Dialog::new();
     dialog.set_title("Equalizer");
     dialog.set_content_width(760);
@@ -930,7 +1058,7 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
     dialog.set_child(Some(&toasts));
 
     let panel = Rc::new(Panel {
-        service: ctx().equalizer.clone(),
+        service,
         toasts,
         pages,
         title,
@@ -938,6 +1066,7 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
         spinner,
         graph,
         note,
+        drop_zone,
         scroller,
         list,
         empty,
@@ -957,6 +1086,13 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
         {
             let on = switch.is_active();
             panel.change("Equalizer", move |service| service.set_enabled(on).map(|()| None));
+        }
+    });
+    let target = accept_drops(&panel, &droppable);
+    let weak = Rc::downgrade(&panel);
+    import.connect_clicked(move |_| {
+        if let Some(panel) = weak.upgrade() {
+            panel.choose_files(false);
         }
     });
     let weak = Rc::downgrade(&panel);
@@ -985,9 +1121,7 @@ fn open(parent: &impl IsA<gtk::Widget>) -> Rc<Panel> {
             timer.remove();
         }
     });
-    dialog.present(Some(parent));
-    panel.refresh(|_| {});
-    panel
+    (dialog, panel, target)
 }
 
 /// Open the Equalizer dialog over the window `parent` is in.
@@ -1019,8 +1153,8 @@ Filter 6: ON HSC Fc 11000 Hz Gain 4.5 dB Q 0.70";
 /// `equalizer-add` and `equalizer-add-error`, the page for a new preset with made-up text;
 /// `equalizer-menu`, `equalizer-rename` and `equalizer-delete`, of the active preset;
 /// `equalizer-failed`, what a change that fails looks like (it asks to rename a preset that is
-/// not there). `equalizer-off` and `equalizer-empty` are states the demonstration's equalizer
-/// starts in (`equalizer::DemoStart`).
+/// not there); `equalizer-drop`, the dialog while files are dragged over it. `equalizer-off` and
+/// `equalizer-empty` are states the demonstration's equalizer starts in (`equalizer::DemoStart`).
 pub fn show_scene(parent: &impl IsA<gtk::Widget>, name: &str) {
     let panel = open(parent);
     // once the presets are shown: something with the active one
@@ -1045,6 +1179,7 @@ pub fn show_scene(parent: &impl IsA<gtk::Widget>, name: &str) {
         "equalizer-failed" => {
             panel.change("Rename", |service| service.rename("a-preset-that-is-not-there", "Sample").map(|()| None))
         }
+        "equalizer-drop" => panel.drop_zone.set_visible(true),
         _ => {}
     }
 }
@@ -1063,7 +1198,7 @@ pub fn menu_row() -> adw::ButtonRow {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::equalizer::{DemoEqualizer, DemoStart};
 
@@ -1073,6 +1208,7 @@ mod tests {
         assert_eq!(detail(1, 3.0), "1 filter · Preamp +3.0 dB");
         assert_eq!(detail(0, -0.0), "No filters · Preamp +0.0 dB");
         assert_eq!(source_label("pasted"), "Pasted");
+        assert_eq!(source_label("file"), "From File");
         assert_eq!(source_label("bridge"), "", "where those came from is not shown");
         assert_eq!(source_label("sample"), "Sample");
         assert_eq!(source_label("elsewhere"), "Elsewhere");
@@ -1108,6 +1244,66 @@ mod tests {
         let demo = DemoEqualizer::new(DemoStart::On);
         assert_eq!(View::of(&demo).note.as_deref(), Some("Sink: EQ on, 5 bands, -4.5 dB"));
         assert_eq!(View::new(&demo.snapshot(), None).note, None);
+    }
+
+    #[test]
+    fn a_drop_brings_a_list_of_files_or_one() {
+        let (first, second) = (gio::File::for_path("/nowhere/a.txt"), gio::File::for_path("/nowhere/b.txt"));
+        let uris = |files: Vec<gio::File>| files.iter().map(|file| file.uri().to_string()).collect::<Vec<_>>();
+        let list = gdk::FileList::from_array(&[first.clone(), second]);
+        assert_eq!(uris(dropped_files(&list.to_value())), ["file:///nowhere/a.txt", "file:///nowhere/b.txt"]);
+        assert_eq!(uris(dropped_files(&first.to_value())), ["file:///nowhere/a.txt"]);
+        assert!(dropped_files(&"text".to_value()).is_empty());
+    }
+
+    /// Files dropped on the dialog become presets, those that cannot be read are named, and the
+    /// zone shows only during a drag (part of `widgets::tests::widgets_on_a_display`).
+    pub(crate) fn on_a_display() {
+        let folder = tempfile::tempdir().unwrap();
+        let write = |name: &str, text: &str| {
+            let path = folder.path().join(name);
+            std::fs::write(&path, text).unwrap();
+            gio::File::for_path(path)
+        };
+        let good = write("Dropped Preset.txt", PASTED);
+        let bad = write("Not A Preset.txt", "hello\n");
+        let single = write("One More.txt", PASTED);
+
+        let window = adw::Window::new();
+        window.set_default_size(900, 760);
+        window.present();
+        let service = Arc::new(DemoEqualizer::new(DemoStart::On));
+        let (dialog, panel, target) = build(service.clone());
+        dialog.present(Some(&window));
+        let context = glib::MainContext::default();
+        let wait_for = |what: &str, reached: &dyn Fn() -> bool| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(20);
+            while !reached() {
+                assert!(std::time::Instant::now() < deadline, "{what}");
+                context.iteration(false);
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        panel.refresh(|_| {});
+        wait_for("the first view", &|| panel.rows.borrow().len() == 4);
+        assert!(!panel.drop_zone.is_visible());
+        assert!(!target.types().is_empty());
+
+        // what GTK hands the target when files are let go over the dialog
+        let drop_value =
+            |value: glib::Value| target.emit_by_name::<bool>("drop", &[&glib::BoxedValue(value), &10.0_f64, &10.0_f64]);
+        let names = || service.snapshot().presets.into_iter().map(|preset| preset.name).collect::<Vec<_>>();
+        assert!(drop_value(gdk::FileList::from_array(&[good, bad]).to_value()));
+        wait_for("the rows of the new preset", &|| panel.rows.borrow().len() == 5);
+        assert_eq!(names()[4], "Dropped Preset");
+        let shown = panel.view.borrow().as_ref().map(|view| view.rows[4].source.clone());
+        assert_eq!(shown.as_deref(), Some("From File"));
+        // a single file is taken as well; nothing that is no file
+        assert!(drop_value(single.to_value()));
+        wait_for("the second drop", &|| panel.rows.borrow().len() == 6);
+        assert_eq!(names()[5], "One More");
+        assert!(!drop_value("text".to_value()));
+        window.close();
     }
 
     #[test]

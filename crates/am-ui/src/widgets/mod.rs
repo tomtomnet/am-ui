@@ -246,6 +246,7 @@ pub(crate) mod tests {
         embedded::tests::on_a_display();
         hero::tests::on_a_display();
         track_row::tests::on_a_display();
+        equalizer::tests::on_a_display();
     }
 
     /// Every label of `container` (among its own children) that shows something is as tall as

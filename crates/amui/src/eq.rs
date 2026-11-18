@@ -40,6 +40,7 @@
 //!   `with_apply_fn`, `with_live_fn`, `with_audit` change one of them.
 //! * [`Equalizer::settle`] and [`Equalizer::sink_as_wanted`] are new (see above); the Python
 //!   engine left the stage as it found it until the user switched the equalizer.
+//! * [`Equalizer::add_file_preset`] is new: a preset from a file, named after it.
 //! * Values are typed: [`Preset`], [`Filter`], [`Snapshot`], [`LiveState`], [`Controls`].
 //!   [`Preset::of`] makes the preset that is only a response (what Python passed as
 //!   `{"preamp": ..., "filters": ...}`).
@@ -248,6 +249,20 @@ fn clean_preset(raw: &Value, source: Option<&str>) -> Option<Preset> {
     })
 }
 
+/// `name`, or with the first number from 2 on that makes it differ from the name of every preset
+/// in `taken` ("Name 2"), still within [`NAME_MAX`]. Capitals do not make a name another one.
+fn unique_name(name: &str, taken: &[Preset]) -> String {
+    let free = |candidate: &str| !taken.iter().any(|preset| preset.name.to_lowercase() == candidate.to_lowercase());
+    if free(name) {
+        return name.to_string();
+    }
+    let numbered = |number: usize| {
+        let suffix = format!(" {number}");
+        format!("{}{suffix}", py_strip(head(name, NAME_MAX - suffix.chars().count())))
+    };
+    (2..=taken.len() + 2).map(numbered).find(|candidate| free(candidate)).unwrap_or_else(|| name.to_string())
+}
+
 /// The start of a preset's id: the name in lower-case letters and digits, joined by dashes.
 fn slug(name: &str) -> String {
     let lower = name.to_lowercase();
@@ -368,7 +383,8 @@ pub struct Preset {
     /// dB.
     pub preamp: f64,
     pub filters: Vec<Filter>,
-    /// "pasted", "bridge" (copied from the other application) or "sample".
+    /// "pasted", "file" (imported from a file), "bridge" (copied from the other application) or
+    /// "sample".
     pub source: String,
     /// The text it was pasted as.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -738,19 +754,30 @@ impl Equalizer {
     /// Parse `text` (the error has the line number when it is not a preset) and store it.
     /// `source` says where it is from: "pasted" for the user's own.
     pub fn add_preset(&self, name: &str, text: &str, source: &str) -> Result<Preset, EqError> {
+        self.store_preset(name, text, source, false)
+    }
+
+    /// Store the text of a file as a preset named after it: `add_preset()` with the source "file"
+    /// and a name that no preset has yet ("Name", then "Name 2"): the same file can come twice.
+    pub fn add_file_preset(&self, name: &str, text: &str) -> Result<Preset, EqError> {
+        self.store_preset(name, text, "file", true)
+    }
+
+    fn store_preset(&self, name: &str, text: &str, source: &str, unique: bool) -> Result<Preset, EqError> {
         let (preamp, filters) = parse(text)?;
         let name = Some(clean_name(name)).filter(|name| !name.is_empty()).unwrap_or("Preset");
         let mut slot = self.lock();
         let state = self.load(&mut slot);
+        let name = if unique { unique_name(name, &state.presets) } else { name.to_string() };
         let id = loop {
-            let id = format!("{}-{}", slug(name), token_hex());
+            let id = format!("{}-{}", slug(&name), token_hex());
             if state.position(&id).is_none() {
                 break id;
             }
         };
         let preset = Preset {
             id: id.clone(),
-            name: name.to_string(),
+            name,
             preamp,
             filters,
             source: source.to_string(),
@@ -1637,6 +1664,32 @@ Filter 5: ON HSC Fc 10000 Hz Gain 4.0 dB Q 0.70",
         assert_eq!(reader.snapshot().to_json(), reference["snapshot"]);
         assert_eq!(reader.active().unwrap().to_json(), reference["snapshot"]["presets"][0]);
         assert_eq!(fs::read_to_string(&fixture.state).unwrap(), text(&reference["text"]));
+    }
+
+    #[test]
+    fn a_file_s_preset_gets_a_name_of_its_own() {
+        let eq = idle();
+        let added = |name: &str| eq.add_file_preset(name, APO_TEXT).unwrap();
+        let first = added("  Song Preset ");
+        assert_eq!((first.name.as_str(), first.source.as_str()), ("Song Preset", "file"));
+        assert_eq!(added("Song Preset").name, "Song Preset 2");
+        assert_eq!(added("song preset").name, "song preset 3", "capitals make no other name");
+        eq.add_preset("Other", APO_TEXT, "pasted").unwrap();
+        assert_eq!(added("Other").name, "Other 2", "whatever the other one came from");
+        // what is pasted keeps the name it is given
+        assert_eq!(eq.add_preset("Other", APO_TEXT, "pasted").unwrap().name, "Other");
+        // a full-length name makes room for its number
+        let long = "n".repeat(NAME_MAX + 10);
+        assert_eq!(added(&long).name, "n".repeat(NAME_MAX));
+        let second = added(&long).name;
+        assert_eq!(second, format!("{} 2", "n".repeat(NAME_MAX - 2)));
+        assert_eq!(second.chars().count(), NAME_MAX);
+        // no name at all, and text that is no preset
+        assert_eq!(added("  ").name, "Preset");
+        assert_eq!(eq.add_file_preset("Broken", "garbage").unwrap_err().line(), Some(1));
+        assert!(eq.presets().iter().all(|preset| preset.name != "Broken"));
+        let ids: std::collections::HashSet<String> = eq.presets().into_iter().map(|preset| preset.id).collect();
+        assert_eq!(ids.len(), eq.presets().len());
     }
 
     #[test]

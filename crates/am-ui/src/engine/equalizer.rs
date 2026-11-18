@@ -42,6 +42,10 @@ impl EqualizerService for EngineEqualizer {
         self.equalizer.add_preset(name, text, "pasted")
     }
 
+    fn add_file(&self, name: &str, text: &str) -> Result<Preset, EqError> {
+        self.equalizer.add_file_preset(name, text)
+    }
+
     fn rename(&self, id: &str, name: &str) -> Result<(), EqError> {
         self.equalizer.rename_preset(id, name).map(drop)
     }
