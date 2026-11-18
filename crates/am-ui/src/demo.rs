@@ -5,8 +5,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant};
 
 use amui::types::{Album, Artist, Artwork, Line, Lyrics, Page, Playlist, SearchResults, Timing, Track, Word};
 
@@ -31,6 +31,15 @@ struct StoredPlaylist {
     tracks: Vec<Track>,
 }
 
+/// A change of the library that shows in the answers when its time has come.
+enum Change {
+    Created(Box<StoredPlaylist>),
+    Renamed { id: String, name: String, description: String },
+    Deleted(String),
+    Added { id: String, tracks: Vec<Track> },
+    Removed { id: String, gone: HashSet<String> },
+}
+
 pub struct DemoMusic {
     assets: PathBuf,
     albums: Vec<Source>,
@@ -46,6 +55,18 @@ pub struct DemoMusic {
     /// `AMUI_DEMO_SHELVES`: how Home, New and Radio answer (see `shelves`).
     shelf_mode: String,
     shelf_requests: AtomicUsize,
+    /// `AMUI_DEMO_LAG_MS`: how long a change of the library takes to show in the answers, as with
+    /// Apple's service. Meanwhile a playlist that was deleted is listed without its name.
+    lag: Duration,
+    /// The changes whose time has not come yet, the oldest first.
+    coming: Mutex<Vec<(Instant, Change)>>,
+    /// For the ids of the playlists created here.
+    next_playlist: AtomicUsize,
+    /// `AMUI_DEMO_REFRESH`: what asking for fresh data does (see `after_refresh`).
+    refresh_mode: String,
+    refreshes: AtomicUsize,
+    /// How often the list of the library's playlists was asked for.
+    playlist_lists: AtomicUsize,
 }
 
 fn page<T: Clone>(items: &[T], offset: i64, limit: i64) -> Page<T> {
@@ -105,6 +126,14 @@ impl DemoMusic {
                 .map(Duration::from_millis),
             shelf_mode: std::env::var("AMUI_DEMO_SHELVES").unwrap_or_default(),
             shelf_requests: AtomicUsize::new(0),
+            lag: Duration::from_millis(
+                std::env::var("AMUI_DEMO_LAG_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(0),
+            ),
+            coming: Mutex::new(Vec::new()),
+            next_playlist: AtomicUsize::new(1000),
+            refresh_mode: std::env::var("AMUI_DEMO_REFRESH").unwrap_or_default(),
+            refreshes: AtomicUsize::new(0),
+            playlist_lists: AtomicUsize::new(0),
         };
         let mut playlists = Vec::new();
         if !demo.albums.is_empty() {
@@ -135,6 +164,113 @@ impl DemoMusic {
         if !self.delay.is_zero() {
             std::thread::sleep(self.delay);
         }
+    }
+
+    /// For tests: no delay, with the given lag of changes and refresh mode.
+    #[cfg(test)]
+    pub fn quick(lag: Duration, refresh_mode: &str) -> DemoMusic {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        DemoMusic { delay: Duration::ZERO, lag, refresh_mode: refresh_mode.to_string(), ..DemoMusic::new(&root) }
+    }
+
+    /// For tests: how often the list of playlists was asked for.
+    #[cfg(test)]
+    pub fn playlist_list_requests(&self) -> usize {
+        self.playlist_lists.load(Ordering::Relaxed)
+    }
+
+    /// What the service has applied by now: the playlists, with the changes whose time has come.
+    fn lists(&self) -> MutexGuard<'_, Vec<StoredPlaylist>> {
+        let mut playlists = self.playlists.lock().unwrap();
+        let mut coming = self.coming.lock().unwrap();
+        let now = Instant::now();
+        let due = coming.iter().take_while(|(at, _)| *at <= now).count();
+        for (_, change) in coming.drain(..due) {
+            Self::apply(&mut playlists, change);
+        }
+        playlists
+    }
+
+    fn apply(playlists: &mut Vec<StoredPlaylist>, change: Change) {
+        let found = |playlists: &mut Vec<StoredPlaylist>, id: &str| {
+            playlists.iter().position(|stored| stored.playlist.library_id.as_deref() == Some(id))
+        };
+        match change {
+            // the newest first, after Favorite Songs: where Apple's list has it
+            Change::Created(stored) => {
+                let first = usize::from(playlists.first().is_some_and(|stored| stored.playlist.is_favorites));
+                playlists.insert(first, *stored);
+            }
+            Change::Renamed { id, name, description } => {
+                if let Some(index) = found(playlists, &id) {
+                    playlists[index].playlist.name = name;
+                    playlists[index].playlist.description = description;
+                }
+            }
+            Change::Deleted(id) => {
+                if let Some(index) = found(playlists, &id) {
+                    playlists.remove(index);
+                }
+            }
+            Change::Added { id, tracks } => {
+                if let Some(index) = found(playlists, &id) {
+                    let stored = &mut playlists[index];
+                    stored.tracks.extend(tracks);
+                    stored.playlist.track_count = Some(stored.tracks.len() as i64);
+                }
+            }
+            Change::Removed { id, gone } => {
+                if let Some(index) = found(playlists, &id) {
+                    let stored = &mut playlists[index];
+                    stored.tracks.retain(|track| !gone.contains(&track.key()));
+                    stored.playlist.track_count = Some(stored.tracks.len() as i64);
+                }
+            }
+        }
+    }
+
+    /// A change of the library: it shows in the answers after `lag`.
+    fn change(&self, change: Change) {
+        if self.lag.is_zero() {
+            Self::apply(&mut self.lists(), change);
+            return;
+        }
+        // until then a playlist that was deleted is listed without its name
+        if let Change::Deleted(id) = &change
+            && let Some(stored) = self.lists().iter_mut().find(|stored| stored.playlist.library_id.as_ref() == Some(id))
+        {
+            stored.playlist.name.clear();
+        }
+        self.coming.lock().unwrap().push((Instant::now() + self.lag, change));
+    }
+
+    /// Whether the playlist `id` exists, also when it does not show yet.
+    fn known(&self, id: &str) -> Res<()> {
+        let is = |playlist: &Playlist| playlist.library_id.as_deref() == Some(id);
+        let listed = self.lists().iter().any(|stored| is(&stored.playlist));
+        let coming = || {
+            let coming = self.coming.lock().unwrap();
+            coming.iter().any(|(_, change)| matches!(change, Change::Created(stored) if is(&stored.playlist)))
+        };
+        if listed || coming() { Ok(()) } else { Err(Self::missing()) }
+    }
+
+    /// What a request for the library answers after fresh data was asked for
+    /// (`AMUI_DEMO_REFRESH`): `fail`, a problem from then on; `fail-once`, a problem for the first
+    /// refresh only.
+    fn after_refresh(&self) -> Res<()> {
+        let refreshes = self.refreshes.load(Ordering::Relaxed);
+        match self.refresh_mode.as_str() {
+            "fail" if refreshes > 0 => Err(Problem::new("The demonstration was told to fail.")),
+            "fail-once" if refreshes == 1 => Err(Problem::new("The demonstration was told to fail once.")),
+            _ => Ok(()),
+        }
+    }
+
+    /// How many albums the library has: `AMUI_DEMO_REFRESH=grow` adds one with every refresh.
+    fn library_album_count(&self) -> usize {
+        let more = if self.refresh_mode == "grow" { self.refreshes.load(Ordering::Relaxed) } else { 0 };
+        (LIBRARY_ALBUMS + more).min(self.albums.len())
     }
 
     /// Take as long as a search: `AMUI_DEMO_SEARCH_MS`, or `times` the usual delay.
@@ -425,34 +561,39 @@ impl DemoMusic {
 impl Music for DemoMusic {
     fn library_albums(&self, offset: i64, limit: i64) -> Res<Page<Album>> {
         self.wait();
-        let albums: Vec<Album> = (0..LIBRARY_ALBUMS.min(self.albums.len())).map(|index| self.album(index)).collect();
+        self.after_refresh()?;
+        let albums: Vec<Album> = (0..self.library_album_count()).map(|index| self.album(index)).collect();
         Ok(page(&albums, offset, limit))
     }
 
     fn library_artists(&self, offset: i64, limit: i64) -> Res<Page<Artist>> {
         self.wait();
+        self.after_refresh()?;
         Ok(page(&self.artists(true), offset, limit))
     }
 
     fn library_songs(&self, offset: i64, limit: i64) -> Res<Page<Track>> {
         self.wait();
+        self.after_refresh()?;
         Ok(page(self.library_song_list(), offset, limit))
     }
 
     fn library_playlists(&self, offset: i64, limit: i64) -> Res<Page<Playlist>> {
         self.wait();
-        let playlists: Vec<Playlist> =
-            self.playlists.lock().unwrap().iter().map(|stored| stored.playlist.clone()).collect();
+        self.after_refresh()?;
+        self.playlist_lists.fetch_add(1, Ordering::Relaxed);
+        let playlists: Vec<Playlist> = self.lists().iter().map(|stored| stored.playlist.clone()).collect();
         Ok(page(&playlists, offset, limit))
     }
 
     fn library_recently_added(&self, offset: i64, limit: i64) -> Res<Page<Item>> {
         self.wait();
-        let mut items: Vec<(String, Item)> = (0..LIBRARY_ALBUMS.min(self.albums.len()))
+        self.after_refresh()?;
+        let mut items: Vec<(String, Item)> = (0..self.library_album_count())
             .map(|index| self.album(index))
             .map(|album| (album.date_added.clone().unwrap_or_default(), Item::Album(album)))
             .collect();
-        for stored in self.playlists.lock().unwrap().iter() {
+        for stored in self.lists().iter() {
             items.push((
                 stored.playlist.date_added.clone().unwrap_or_default(),
                 Item::Playlist(stored.playlist.clone()),
@@ -465,6 +606,7 @@ impl Music for DemoMusic {
 
     fn album(&self, target: &Ref) -> Res<Collection> {
         self.wait();
+        self.after_refresh()?;
         let index =
             Self::index_of(target, "al", "l.").filter(|index| *index < self.albums.len()).ok_or_else(Self::missing)?;
         Ok(Collection {
@@ -477,8 +619,9 @@ impl Music for DemoMusic {
 
     fn playlist(&self, target: &Ref) -> Res<Collection> {
         self.wait();
+        self.after_refresh()?;
         if let Some(library_id) = &target.library_id {
-            let playlists = self.playlists.lock().unwrap();
+            let playlists = self.lists();
             let stored = playlists
                 .iter()
                 .find(|stored| stored.playlist.library_id.as_ref() == Some(library_id))
@@ -499,7 +642,7 @@ impl Music for DemoMusic {
     fn playlist_tracks(&self, library_id: &str, offset: i64, limit: i64) -> Res<Page<Track>> {
         // each page of a long playlist takes its time, as the real service's does
         std::thread::sleep(self.delay * 6);
-        let playlists = self.playlists.lock().unwrap();
+        let playlists = self.lists();
         let stored = playlists
             .iter()
             .find(|stored| stored.playlist.library_id.as_deref() == Some(library_id))
@@ -775,58 +918,53 @@ impl Music for DemoMusic {
 
     fn create_playlist(&self, name: &str, description: &str, tracks: &[Track]) -> Res<Playlist> {
         self.wait();
-        let mut playlists = self.playlists.lock().unwrap();
-        let mut playlist = self.playlist_named(1000 + playlists.len(), name, tracks.len());
+        let number = self.next_playlist.fetch_add(1, Ordering::Relaxed);
+        let mut playlist = self.playlist_named(number, name, tracks.len());
         playlist.description = description.to_string();
-        playlist.artwork = tracks.first().and_then(|track| track.artwork.clone());
-        playlists.push(StoredPlaylist { playlist: playlist.clone(), tracks: tracks.to_vec() });
+        // as with Apple's service: no artwork of its own, the page shows those of its songs
+        playlist.artwork = None;
+        playlist.date_added =
+            gtk::glib::DateTime::now_utc().ok().and_then(|now| now.format_iso8601().ok()).map(String::from);
+        self.change(Change::Created(Box::new(StoredPlaylist { playlist: playlist.clone(), tracks: tracks.to_vec() })));
         Ok(playlist)
     }
 
     fn add_to_playlist(&self, library_id: &str, tracks: &[Track]) -> Res<()> {
         self.wait();
-        let mut playlists = self.playlists.lock().unwrap();
-        let stored = playlists
-            .iter_mut()
-            .find(|stored| stored.playlist.library_id.as_deref() == Some(library_id))
-            .ok_or_else(Self::missing)?;
-        stored.tracks.extend(tracks.iter().cloned());
-        stored.playlist.track_count = Some(stored.tracks.len() as i64);
+        self.known(library_id)?;
+        self.change(Change::Added { id: library_id.to_string(), tracks: tracks.to_vec() });
         Ok(())
     }
 
     fn rename_playlist(&self, library_id: &str, name: &str, description: &str) -> Res<()> {
         self.wait();
-        let mut playlists = self.playlists.lock().unwrap();
-        let stored = playlists
-            .iter_mut()
-            .find(|stored| stored.playlist.library_id.as_deref() == Some(library_id))
-            .ok_or_else(Self::missing)?;
-        stored.playlist.name = name.to_string();
-        stored.playlist.description = description.to_string();
+        self.known(library_id)?;
+        self.change(Change::Renamed {
+            id: library_id.to_string(),
+            name: name.to_string(),
+            description: description.to_string(),
+        });
         Ok(())
     }
 
     fn delete_playlist(&self, library_id: &str) -> Res<()> {
         self.wait();
-        self.playlists.lock().unwrap().retain(|stored| stored.playlist.library_id.as_deref() != Some(library_id));
+        self.change(Change::Deleted(library_id.to_string()));
         Ok(())
     }
 
     fn remove_from_playlist(&self, library_id: &str, tracks: &[Track]) -> Res<()> {
         self.wait();
-        let mut playlists = self.playlists.lock().unwrap();
-        let stored = playlists
-            .iter_mut()
-            .find(|stored| stored.playlist.library_id.as_deref() == Some(library_id))
-            .ok_or_else(Self::missing)?;
-        let gone: HashSet<String> = tracks.iter().map(Track::key).collect();
-        stored.tracks.retain(|track| !gone.contains(&track.key()));
-        stored.playlist.track_count = Some(stored.tracks.len() as i64);
+        self.known(library_id)?;
+        self.change(Change::Removed { id: library_id.to_string(), gone: tracks.iter().map(Track::key).collect() });
         Ok(())
     }
 
-    fn refresh(&self) {}
+    fn refresh(&self) {
+        self.refreshes.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn forget_library(&self) {}
 
     fn artwork(&self, url: &str) -> Res<Vec<u8>> {
         let path = url.strip_prefix("file://").ok_or_else(|| Problem::new("The demonstration has no network"))?;
@@ -870,9 +1008,7 @@ impl DemoMusic {
         let artists: Vec<Artist> =
             self.artists(library).into_iter().filter(|artist| hit(&artist.name)).take(limit).collect();
         let playlists: Vec<Playlist> = if library {
-            self.playlists
-                .lock()
-                .unwrap()
+            self.lists()
                 .iter()
                 .map(|stored| stored.playlist.clone())
                 .filter(|playlist| hit(&playlist.name))

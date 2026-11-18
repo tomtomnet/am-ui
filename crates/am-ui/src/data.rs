@@ -105,6 +105,9 @@ pub trait Music: Send + Sync + 'static {
 
     /// Forget cached answers, so the next requests ask the service again.
     fn refresh(&self);
+    /// Forget the cached answers about the library (the service applies changes to it a moment
+    /// after it has accepted them).
+    fn forget_library(&self);
 
     /// The region whose catalog is shown.
     fn catalog_region(&self) -> Res<Region>;

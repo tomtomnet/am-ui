@@ -2,19 +2,25 @@
 //! recently, loaded once and kept in list models.
 //!
 //! A list is fetched in pages of 100. The first page says how many items there are; the rest
-//! are fetched several at a time and added in order as they arrive (those that arrive while the
-//! window is busy, together).
+//! are fetched several at a time. A list that is empty fills as they arrive (those that arrive
+//! while the window is busy, together); a list that has rows keeps them until the new ones are
+//! complete, and then only what differs is changed (`diff`), so that a page that shows it stays
+//! where it is. What was changed here and the service does not show yet (`edits`) counts over its
+//! answers.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
-use amui::types::{Page, Track};
+use amui::types::{Page, Playlist, Track};
 use gtk::prelude::*;
 use gtk::{gio, glib};
 
-use crate::data::{Item, Music, Problem, Res};
+use crate::data::{Collection, Item, Music, Problem, Res};
+use crate::diff::update_store;
+use crate::edits::Edits;
 use crate::signal::{Signal, background};
 
 pub const PAGE: i64 = 100;
@@ -30,6 +36,16 @@ pub enum Kind {
     Songs,
     Playlists,
     Recent,
+}
+
+impl Kind {
+    pub const ALL: [Kind; 5] = [Kind::Albums, Kind::Artists, Kind::Playlists, Kind::Recent, Kind::Songs];
+
+    /// The lists that can hold playlists: what was changed in those counts over the service's
+    /// answers.
+    fn has_playlists(self) -> bool {
+        matches!(self, Kind::Playlists | Kind::Recent)
+    }
 }
 
 /// The value a row of a list model carries.
@@ -193,11 +209,13 @@ fn fetch_rest<T: Send + 'static>(
 #[derive(Debug, Clone)]
 pub struct Snapshots {
     dir: std::path::PathBuf,
+    /// The copy asked for last, per list: one that is older is not written after it.
+    latest: Arc<Mutex<HashMap<Kind, u64>>>,
 }
 
 impl Snapshots {
     pub fn new(dir: std::path::PathBuf) -> Snapshots {
-        Snapshots { dir }
+        Snapshots { dir, latest: Arc::default() }
     }
 
     fn file(&self, kind: Kind) -> std::path::PathBuf {
@@ -223,7 +241,13 @@ impl Snapshots {
     /// Save the rows of a list (on a worker thread). A copy that cannot be written is no loss.
     fn write(&self, kind: Kind, rows: Rows) {
         let path = self.file(kind);
-        let dir = self.dir.clone();
+        let (dir, latest) = (self.dir.clone(), self.latest.clone());
+        let version = {
+            let mut latest = latest.lock().unwrap();
+            let version = latest.entry(kind).or_insert(0);
+            *version += 1;
+            *version
+        };
         std::thread::spawn(move || {
             let data = match &rows {
                 Rows::Songs(tracks) => serde_json::to_vec(tracks),
@@ -232,7 +256,11 @@ impl Snapshots {
             if let Ok(data) = data
                 && amui::util::create_private_dirs(&dir).is_ok()
             {
-                let _ = amui::util::write_private_atomic(&path, &data);
+                // the threads of several copies run side by side: the last one asked for stays
+                let latest = latest.lock().unwrap();
+                if latest.get(&kind) == Some(&version) {
+                    let _ = amui::util::write_private_atomic(&path, &data);
+                }
             }
         });
     }
@@ -270,14 +298,17 @@ pub struct Library {
     pub recent: gio::ListStore,
     loading: RefCell<HashSet<Kind>>,
     loaded: RefCell<HashSet<Kind>>,
+    /// The lists to fetch once more when their present fetch is over.
+    again: RefCell<HashSet<Kind>>,
     started: Cell<bool>,
     /// A list finished loading, started loading or failed.
     pub changed: Signal<Kind>,
-    pub problem: RefCell<Option<Problem>>,
+    /// Why the lists that failed last could not be fetched.
+    problems: RefCell<HashMap<Kind, Problem>>,
     /// Where the lists are kept between runs; `None`: nowhere (the demonstration).
     snapshots: Option<Snapshots>,
-    /// The lists whose store shows the copy of the last run.
-    from_snapshot: RefCell<HashSet<Kind>>,
+    /// What was changed here and the service may not show yet.
+    edits: RefCell<Edits>,
 }
 
 impl Default for Library {
@@ -291,11 +322,12 @@ impl Default for Library {
             recent: store(),
             loading: RefCell::default(),
             loaded: RefCell::default(),
+            again: RefCell::default(),
             started: Cell::new(false),
             changed: Signal::new(),
-            problem: RefCell::default(),
+            problems: RefCell::default(),
             snapshots: None,
-            from_snapshot: RefCell::default(),
+            edits: RefCell::default(),
         }
     }
 }
@@ -319,6 +351,12 @@ impl Library {
         self.loaded.borrow().contains(&kind)
     }
 
+    /// Why a list could not be fetched, if one could not.
+    pub fn problem(&self) -> Option<Problem> {
+        let problems = self.problems.borrow();
+        Kind::ALL.iter().find_map(|kind| problems.get(kind).cloned())
+    }
+
     /// Whether the library's songs have `track` (by its library id or its catalog id).
     pub fn has_song(&self, track: &Track) -> bool {
         find_song(&self.songs, track).is_some()
@@ -335,8 +373,7 @@ impl Library {
             return;
         }
         if let Some(snapshots) = self.snapshots.clone() {
-            let kinds = [Kind::Albums, Kind::Artists, Kind::Playlists, Kind::Recent, Kind::Songs];
-            for kind in kinds {
+            for kind in Kind::ALL {
                 let (library, snapshots) = (self.clone(), snapshots.clone());
                 background(
                     move || snapshots.read(kind),
@@ -347,7 +384,6 @@ impl Library {
                             && store.n_items() == 0
                             && !library.is_loaded(kind)
                         {
-                            library.from_snapshot.borrow_mut().insert(kind);
                             store.splice(0, 0, &rows.boxed());
                             library.changed.emit(&kind);
                         }
@@ -359,94 +395,170 @@ impl Library {
     }
 
     pub fn reload(self: &Rc<Self>, music: &Arc<dyn Music>) {
-        self.problem.replace(None);
-        for kind in [Kind::Albums, Kind::Artists, Kind::Playlists, Kind::Recent, Kind::Songs] {
+        self.problems.borrow_mut().clear();
+        for kind in Kind::ALL {
             self.reload_kind(music, kind);
         }
     }
 
-    /// Load one list again (after a change to it).
+    /// Load one list again. If it is being fetched, its fetch is followed by another: what is on
+    /// its way may be from before what made this one necessary.
     pub fn reload_kind(self: &Rc<Self>, music: &Arc<dyn Music>, kind: Kind) {
         let m = music.clone();
         match kind {
             Kind::Albums => self.fill(
+                music,
                 kind,
                 Arc::new(move |offset, limit| m.library_albums(offset, limit).map(|page| map(page, Item::Album))),
                 boxed,
             ),
             Kind::Artists => self.fill(
+                music,
                 kind,
                 Arc::new(move |offset, limit| m.library_artists(offset, limit).map(|page| map(page, Item::Artist))),
                 boxed,
             ),
             Kind::Playlists => self.fill(
+                music,
                 kind,
-                Arc::new(move |offset, limit| m.library_playlists(offset, limit).map(|page| map(page, Item::Playlist))),
+                Arc::new(move |offset, limit| {
+                    m.library_playlists(offset, limit).map(|page| shown(map(page, Item::Playlist)))
+                }),
                 boxed,
             ),
-            Kind::Recent => {
-                self.fill(kind, Arc::new(move |offset, limit| m.library_recently_added(offset, limit)), boxed)
-            }
-            Kind::Songs => self.fill(kind, Arc::new(move |offset, limit| m.library_songs(offset, limit)), boxed),
+            Kind::Recent => self.fill(
+                music,
+                kind,
+                Arc::new(move |offset, limit| m.library_recently_added(offset, limit).map(shown)),
+                boxed,
+            ),
+            Kind::Songs => self.fill(music, kind, Arc::new(move |offset, limit| m.library_songs(offset, limit)), boxed),
         }
     }
 
-    fn fill<T: Send + 'static>(self: &Rc<Self>, kind: Kind, fetch: Fetch<T>, wrap: fn(T) -> glib::BoxedAnyObject) {
+    fn fill<T: Send + 'static>(
+        self: &Rc<Self>,
+        music: &Arc<dyn Music>,
+        kind: Kind,
+        fetch: Fetch<T>,
+        wrap: fn(T) -> glib::BoxedAnyObject,
+    ) {
         if !self.loading.borrow_mut().insert(kind) {
+            self.again.borrow_mut().insert(kind);
             return;
         }
         self.changed.emit(&kind);
         let arrivals = Rc::new(Arrivals::new(kind));
-        let (library, done, arrived) = (self.clone(), self.clone(), arrivals.clone());
+        let (library, done, arrived, music) = (self.clone(), self.clone(), arrivals.clone(), music.clone());
         fetch_all(
             fetch,
-            move |_offset, items| {
-                let rows = items.into_iter().map(wrap).collect();
-                // a list that shows the last run's copy keeps it until the fresh one is complete
-                if library.from_snapshot.borrow().contains(&kind) {
-                    arrived.hold(rows);
-                } else {
-                    arrived.add(&library, rows);
-                }
-            },
+            move |_offset, items| arrived.take(&library, items.into_iter().map(wrap).collect()),
             move |result| {
-                let held = done.from_snapshot.borrow().contains(&kind);
-                // what has arrived is in the store before the list counts as loaded; a copy of
-                // the last run stays when the fresh list could not be had
-                if !held || result.is_ok() {
-                    arrivals.store(&done, usize::MAX);
-                    done.from_snapshot.borrow_mut().remove(&kind);
-                }
+                arrivals.finish(&done, result.is_ok());
                 done.loading.borrow_mut().remove(&kind);
                 match result {
                     Ok(()) => {
                         done.loaded.borrow_mut().insert(kind);
-                        if let Some(snapshots) = &done.snapshots {
-                            snapshots.write(kind, Rows::of(kind, done.store(kind)));
-                        }
+                        done.problems.borrow_mut().remove(&kind);
+                        done.save(kind);
                     }
                     Err(problem) => {
-                        done.problem.replace(Some(problem));
+                        done.problems.borrow_mut().insert(kind, problem);
                     }
                 }
                 done.changed.emit(&kind);
+                if done.again.borrow_mut().remove(&kind) {
+                    done.reload_kind(&music, kind);
+                }
             },
         );
     }
+
+    /// Keep a list as it is now for the next run.
+    fn save(&self, kind: Kind) {
+        if let Some(snapshots) = &self.snapshots {
+            snapshots.write(kind, Rows::of(kind, self.store(kind)));
+        }
+    }
+
+    /// Make the list `kind` show `rows` (`None`: what it shows), with what was changed here over
+    /// them. Only what differs changes.
+    fn put(&self, kind: Kind, rows: Option<Vec<glib::BoxedAnyObject>>) {
+        let store = self.store(kind);
+        if !kind.has_playlists() {
+            if let Some(rows) = rows {
+                update_store(store, &rows);
+            }
+            return;
+        }
+        let items: Vec<Item> = match rows {
+            Some(rows) => rows.iter().filter_map(|row| item_of(row.upcast_ref())).collect(),
+            None => (0..store.n_items()).filter_map(|at| store.item(at).as_ref().and_then(item_of)).collect(),
+        };
+        let items = self.edits.borrow_mut().items(items, Instant::now());
+        let rows: Vec<glib::BoxedAnyObject> = items.into_iter().map(boxed).collect();
+        update_store(store, &rows);
+    }
+
+    /// What was changed here shows in the lists of playlists now.
+    fn show_edits(&self) {
+        for kind in [Kind::Playlists, Kind::Recent] {
+            self.put(kind, None);
+            // (a list that is only partly here is saved when it is complete)
+            if self.is_loaded(kind) {
+                self.save(kind);
+            }
+            self.changed.emit(&kind);
+        }
+    }
+
+    /// A playlist was created with `songs` in it: it is in the lists from now on.
+    pub fn playlist_created(&self, playlist: &Playlist, songs: &[Track]) {
+        self.edits.borrow_mut().created(playlist, songs, Instant::now());
+        self.show_edits();
+    }
+
+    /// A playlist got a new name and description.
+    pub fn playlist_renamed(&self, library_id: &str, name: &str, description: &str) {
+        self.edits.borrow_mut().renamed(library_id, name, description, Instant::now());
+        self.show_edits();
+    }
+
+    /// A playlist was deleted: it is gone from the lists.
+    pub fn playlist_deleted(&self, library_id: &str) {
+        self.edits.borrow_mut().deleted(library_id, Instant::now());
+        self.show_edits();
+    }
+
+    /// Songs were added to a playlist that had the songs `known`, as far as that is known.
+    pub fn songs_added(&self, library_id: &str, songs: &[Track], known: &[Track]) {
+        self.edits.borrow_mut().added(library_id, songs, known, Instant::now());
+    }
+
+    /// A song was removed from a playlist.
+    pub fn song_removed(&self, library_id: &str, song: &Track) {
+        self.edits.borrow_mut().removed(library_id, song, Instant::now());
+    }
+
+    /// An album or a playlist as the service gave it, with what was changed here over it.
+    pub fn with_edits(&self, answer: &Collection) -> Collection {
+        self.edits.borrow_mut().collection(answer, Instant::now())
+    }
 }
 
-/// The rows of a list that have arrived and are not in its store yet. The pages that arrive
-/// while the window is busy go into the store together, `BATCH` rows at most with frames in
-/// between: a list that is sorted or shown changes once for them, not once a page.
+/// The rows of a list that has rows are kept until the new ones are complete, and those that have
+/// arrived for an empty list go into its store as they come. The pages that arrive while the
+/// window is busy go in together, `BATCH` rows at most with frames in between: a list that is
+/// sorted or shown changes once for them, not once a page.
 struct Arrivals {
     kind: Kind,
     rows: RefCell<Vec<glib::BoxedAnyObject>>,
-    /// The first page is there. A reload replaces the rows of the store only then: no empty
-    /// flash before it.
-    started: Cell<bool>,
-    /// The rows of the store were replaced; what follows is added to them.
-    replaced: Cell<bool>,
-    /// An idle callback is going to store what is waiting.
+    /// Whether the rows go into the store as they come: the list was empty when the first page
+    /// arrived. `None`: none has yet.
+    filling: Cell<Option<bool>>,
+    /// The first rows are in the store: what follows is added to them.
+    begun: Cell<bool>,
+    /// Something is going to store what is waiting when the window is idle.
     scheduled: Cell<bool>,
 }
 
@@ -455,56 +567,278 @@ impl Arrivals {
         Arrivals {
             kind,
             rows: RefCell::default(),
-            started: Cell::new(false),
-            replaced: Cell::new(false),
+            filling: Cell::new(None),
+            begun: Cell::new(false),
             scheduled: Cell::new(false),
         }
     }
 
-    /// Keep rows until the list is complete (`store` at the end puts them in at once).
-    fn hold(&self, rows: Vec<glib::BoxedAnyObject>) {
-        self.started.set(true);
+    /// The rows of the next page.
+    fn take(self: &Rc<Self>, library: &Rc<Library>, rows: Vec<glib::BoxedAnyObject>) {
+        let filling = self.filling.get().unwrap_or_else(|| library.store(self.kind).n_items() == 0);
+        self.filling.set(Some(filling));
         self.rows.borrow_mut().extend(rows);
-    }
-
-    fn add(self: &Rc<Self>, library: &Rc<Library>, rows: Vec<glib::BoxedAnyObject>) {
-        self.started.set(true);
-        self.rows.borrow_mut().extend(rows);
-        if self.scheduled.replace(true) {
+        if !filling || self.scheduled.replace(true) {
             return;
         }
         let (arrivals, library) = (self.clone(), library.clone());
-        glib::idle_add_local_full(glib::Priority::DEFAULT_IDLE, move || {
-            arrivals.store(&library, BATCH);
-            if !arrivals.rows.borrow().is_empty() {
-                return glib::ControlFlow::Continue;
+        glib::spawn_future_local(async move {
+            loop {
+                // when the window has nothing more urgent to do
+                glib::timeout_future_with_priority(glib::Priority::DEFAULT_IDLE, Duration::ZERO).await;
+                arrivals.store(&library, BATCH);
+                if arrivals.rows.borrow().is_empty() {
+                    break;
+                }
             }
             arrivals.scheduled.set(false);
-            glib::ControlFlow::Break
         });
     }
 
-    /// Put up to `most` of the rows that are waiting into the store.
+    /// Put up to `most` of the rows that are waiting into the store. The first ones take the place
+    /// of what is there (a copy of the last run that came in after the first page was fetched).
     fn store(&self, library: &Library, most: usize) {
-        if !self.started.get() {
-            return;
-        }
         let rows: Vec<glib::BoxedAnyObject> = {
             let mut waiting = self.rows.borrow_mut();
             let count = waiting.len().min(most);
             waiting.drain(..count).collect()
         };
         let store = library.store(self.kind);
-        if !self.replaced.replace(true) {
+        if !self.begun.replace(true) {
             store.splice(0, store.n_items(), &rows);
         } else if !rows.is_empty() {
             store.extend_from_slice(&rows);
+        }
+    }
+
+    /// The fetch is over. A list that filled gets what is still waiting; one that had rows gets
+    /// the new ones, if they are complete (else it stays as it was).
+    fn finish(&self, library: &Library, complete: bool) {
+        match self.filling.get() {
+            Some(true) => {
+                self.store(library, usize::MAX);
+                if self.kind.has_playlists() {
+                    library.put(self.kind, None);
+                }
+            }
+            Some(false) if complete => library.put(self.kind, Some(self.rows.take())),
+            _ => {}
         }
     }
 }
 
 fn map<T, U>(page: Page<T>, wrap: fn(T) -> U) -> Page<U> {
     Page::new(page.items.into_iter().map(wrap).collect(), page.next_offset, page.total)
+}
+
+/// A page of a list without the playlists that have no name: that is how the service lists a
+/// playlist that is being removed.
+fn shown(page: Page<Item>) -> Page<Item> {
+    let named = |item: &Item| !matches!(item, Item::Playlist(playlist) if playlist.name.trim().is_empty());
+    Page::new(page.items.into_iter().filter(named).collect(), page.next_offset, page.total)
+}
+
+#[cfg(test)]
+mod reload_tests {
+    use super::*;
+    use crate::demo::DemoMusic;
+
+    /// Longer than any test takes: what is changed in the demonstration's library stays unseen.
+    const FOREVER: Duration = Duration::from_secs(3600);
+
+    /// Run `test` with a main loop for this thread; `settle(done)` runs it until `done` holds.
+    fn with_loop(test: impl FnOnce(&dyn Fn(&dyn Fn() -> bool))) {
+        let context = glib::MainContext::new();
+        context
+            .with_thread_default(|| {
+                test(&|done: &dyn Fn() -> bool| {
+                    let start = Instant::now();
+                    while !done() {
+                        context.iteration(false);
+                        std::thread::sleep(Duration::from_millis(1));
+                        assert!(start.elapsed() < Duration::from_secs(20), "the library did not finish loading");
+                    }
+                    // what was scheduled along the way
+                    while context.iteration(false) {}
+                });
+            })
+            .unwrap();
+    }
+
+    fn names(library: &Library, kind: Kind) -> Vec<String> {
+        let store = library.store(kind);
+        (0..store.n_items())
+            .filter_map(|at| store.item(at).as_ref().and_then(item_of))
+            .map(|item| item.title().to_string())
+            .collect()
+    }
+
+    fn idle(library: &Library) -> bool {
+        Kind::ALL.iter().all(|kind| !library.is_loading(*kind))
+    }
+
+    #[test]
+    fn answers_from_before_a_change_do_not_undo_it() {
+        with_loop(|settle| {
+            let music: Arc<dyn Music> = Arc::new(DemoMusic::quick(FOREVER, ""));
+            let library = Rc::new(Library::default());
+            library.load(&music);
+            settle(&|| idle(&library));
+            let before = names(&library, Kind::Playlists);
+            assert_eq!(before[0], "Favorite Songs");
+            assert!(before.len() > 5 && names(&library, Kind::Recent).contains(&before[1]));
+
+            // a new playlist shows at once, after Favorite Songs and at the top of what is recent
+            let created = music.create_playlist("Brand New", "Words", &[]).unwrap();
+            library.playlist_created(&created, &[]);
+            assert_eq!(names(&library, Kind::Playlists)[..2], ["Favorite Songs", "Brand New"]);
+            assert_eq!(names(&library, Kind::Recent)[0], "Brand New");
+            // the service's list, still without it, leaves it there
+            library.reload_kind(&music, Kind::Playlists);
+            library.reload_kind(&music, Kind::Recent);
+            settle(&|| idle(&library));
+            assert_eq!(names(&library, Kind::Playlists)[..2], ["Favorite Songs", "Brand New"]);
+            assert_eq!(names(&library, Kind::Recent)[0], "Brand New");
+
+            // a deleted playlist goes at once and stays away, though it is still listed (without
+            // a name)
+            let gone = before[1].clone();
+            music.delete_playlist("p.1").unwrap();
+            library.playlist_deleted("p.1");
+            assert!(!names(&library, Kind::Playlists).contains(&gone));
+            assert!(!names(&library, Kind::Recent).contains(&gone));
+            library.reload_kind(&music, Kind::Playlists);
+            library.reload_kind(&music, Kind::Recent);
+            settle(&|| idle(&library));
+            assert!(!names(&library, Kind::Playlists).contains(&gone));
+            assert!(!names(&library, Kind::Playlists).iter().any(String::is_empty));
+            assert!(!names(&library, Kind::Recent).iter().any(String::is_empty));
+
+            // a new name counts over the old one
+            music.rename_playlist("p.2", "New Name", "").unwrap();
+            library.playlist_renamed("p.2", "New Name", "");
+            assert!(names(&library, Kind::Playlists).contains(&"New Name".to_string()));
+            library.reload(&music);
+            settle(&|| idle(&library));
+            assert!(names(&library, Kind::Playlists).contains(&"New Name".to_string()));
+            assert!(names(&library, Kind::Recent).contains(&"New Name".to_string()));
+        });
+    }
+
+    #[test]
+    fn the_saved_lists_follow_what_was_changed() {
+        with_loop(|settle| {
+            let dir = tempfile::tempdir().unwrap();
+            let snapshots = Snapshots::new(dir.path().join("library"));
+            let saved = |kind: Kind| -> Vec<String> {
+                match snapshots.read(kind) {
+                    Some(Rows::Items(items)) => items.iter().map(|item| item.title().to_string()).collect(),
+                    _ => Vec::new(),
+                }
+            };
+            let music: Arc<dyn Music> = Arc::new(DemoMusic::quick(FOREVER, ""));
+            let library = Rc::new(Library::with_snapshots(snapshots.clone()));
+            library.load(&music);
+            settle(&|| idle(&library) && !saved(Kind::Playlists).is_empty());
+            settle(&|| saved(Kind::Playlists) == names(&library, Kind::Playlists));
+            let deleted = names(&library, Kind::Playlists)[1].clone();
+
+            let created = music.create_playlist("Brand New", "", &[]).unwrap();
+            library.playlist_created(&created, &[]);
+            music.delete_playlist("p.1").unwrap();
+            library.playlist_deleted("p.1");
+            for kind in [Kind::Playlists, Kind::Recent] {
+                settle(&|| saved(kind) == names(&library, kind));
+                assert!(saved(kind).contains(&"Brand New".to_string()), "{kind:?}");
+                assert!(!saved(kind).contains(&deleted), "{kind:?}");
+            }
+            // an answer from before the changes leaves the copy as it is
+            library.reload(&music);
+            settle(&|| idle(&library));
+            settle(&|| saved(Kind::Playlists) == names(&library, Kind::Playlists));
+            assert_eq!(saved(Kind::Playlists)[1], "Brand New");
+            assert!(!saved(Kind::Playlists).contains(&deleted) && !saved(Kind::Playlists).iter().any(String::is_empty));
+        });
+    }
+
+    #[test]
+    fn a_list_that_is_fetched_again_changes_only_where_it_differs() {
+        with_loop(|settle| {
+            let music: Arc<dyn Music> = Arc::new(DemoMusic::quick(Duration::ZERO, "grow"));
+            let library = Rc::new(Library::default());
+            library.load(&music);
+            settle(&|| idle(&library));
+            let (albums, songs) = (library.albums.n_items(), library.songs.n_items());
+            assert!(albums > 0 && songs > 0);
+            let first = library.albums.item(0).unwrap();
+            let changes = Rc::new(RefCell::new(Vec::new()));
+            let seen = changes.clone();
+            library.albums.connect_items_changed(move |_, at, removed, added| {
+                seen.borrow_mut().push((at, removed, added));
+            });
+            let unchanged = Rc::new(Cell::new(true));
+            let flag = unchanged.clone();
+            library.songs.connect_items_changed(move |_, _, _, _| flag.set(false));
+
+            // the service has one album more now: one row is added and the others stay as they are
+            music.refresh();
+            library.reload(&music);
+            settle(&|| idle(&library));
+            assert_eq!(library.albums.n_items(), albums + 1);
+            assert_eq!(*changes.borrow(), [(albums, 0, 1)]);
+            assert_eq!(library.albums.item(0).unwrap(), first);
+            // the same answer as before: the list is not touched
+            assert!(unchanged.get());
+            assert_eq!(library.songs.n_items(), songs);
+        });
+    }
+
+    #[test]
+    fn a_failed_fetch_leaves_a_list_as_it_was() {
+        with_loop(|settle| {
+            let music: Arc<dyn Music> = Arc::new(DemoMusic::quick(Duration::ZERO, "fail-once"));
+            let library = Rc::new(Library::default());
+            library.load(&music);
+            settle(&|| idle(&library));
+            let before = names(&library, Kind::Albums);
+            assert!(library.problem().is_none() && !before.is_empty());
+
+            // every list fails: the lists stay
+            music.refresh();
+            library.reload(&music);
+            settle(&|| idle(&library));
+            assert_eq!(
+                library.problem().map(|problem| problem.message),
+                Some("The demonstration was told to fail once.".to_string())
+            );
+            assert_eq!(names(&library, Kind::Albums), before);
+
+            // the next time it works
+            music.refresh();
+            library.reload(&music);
+            settle(&|| idle(&library));
+            assert!(library.problem().is_none());
+            assert_eq!(names(&library, Kind::Albums), before);
+        });
+    }
+
+    #[test]
+    fn asking_for_a_list_that_is_being_fetched_fetches_it_again_afterwards() {
+        with_loop(|settle| {
+            let demo = Arc::new(DemoMusic::quick(Duration::ZERO, ""));
+            let music: Arc<dyn Music> = demo.clone();
+            let library = Rc::new(Library::default());
+            library.load(&music);
+            settle(&|| idle(&library));
+            let before = demo.playlist_list_requests();
+            library.reload_kind(&music, Kind::Playlists);
+            library.reload_kind(&music, Kind::Playlists);
+            library.reload_kind(&music, Kind::Playlists);
+            settle(&|| idle(&library));
+            // the one under way and one more for what came while it ran
+            assert_eq!(demo.playlist_list_requests() - before, 2);
+        });
+    }
 }
 
 #[cfg(test)]

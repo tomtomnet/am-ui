@@ -58,6 +58,9 @@ holds for a term before Apple Music's results) and `AMUI_SHOT_DELAY_MS` when the
 taken. `AMUI_DEMO_SONGS=N` gives the library at least N songs (copies of its own with titles,
 albums and dates of their own), for checks of long lists. `AMUI_DEMO_NO_LOSSLESS` makes it a
 machine without the lossless route (the Sound menu then says why only High Quality can be chosen).
+`AMUI_DEMO_LAG_MS=N` makes changes of the library show in its answers only after N milliseconds,
+as with Apple's service (meanwhile a deleted playlist is listed without its name, a new one is not
+listed).
 
 `--playing` starts the third of fifteen songs. `--song N` (0 to 14) starts another one: their
 lyrics differ (2, 4, 7, 10 and 13 have word timing, 3, 5, 11 and 14 line timing, 1, 6, 9 and 12
@@ -90,6 +93,8 @@ crates/am-ui/tools/headless.sh target/debug/am-ui --demo --playing --song 2 --se
 | `regions.rs` | Apple Music's regions with their names, for the catalog region in Preferences |
 | `signal.rs` | `Signal<T>` (listeners that end with their widget) and `background(work, done)` |
 | `library.rs`, `favorites.rs` | the library's list models; which songs are favourites |
+| `edits.rs` | what was changed in the library here and the service does not show yet, laid over its answers |
+| `diff.rs` | how the rows of a list become new ones with only what differs changed |
 | `finder.rs` | what the library holds for a search term, found in those lists as the term is typed, best match first |
 | `sorting.rs` | the orders of the library's lists, and the keys that put rows in them (titles as people expect them) |
 | `actions.rs` | what can be done with a song, album, playlist, artist or station, wherever it appears |
@@ -124,6 +129,13 @@ thread, and never call a `Music` method on it.
 `signal.connect(&widget, |widget, value| ...)`: the subscription holds the widget weakly and ends
 with it. Do not keep `Rc<Ctx>` inside long-lived closures of a widget that `Ctx` owns; call
 `crate::app::ctx()` inside the closure.
+
+**Lists that change.** A list that has rows is never emptied and filled again: new rows go into
+its store through `diff::update_store`, which changes only what differs, so that a view keeps its
+place and the rows under a removed one just move up. A page that is built is changed, not built
+again. Apple applies changes of the library some time after accepting them: what was changed here
+goes through `Library` (`playlist_created`, `song_removed`...), shows at once and counts over the
+service's answers for ten minutes (`edits`), so that an answer that is behind changes nothing.
 
 **A new image on every refresh.** At 240 Hz a frame has 4.2 ms. Measurements made while the
 toolkit was chosen led to these rules:

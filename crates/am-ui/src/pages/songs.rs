@@ -25,7 +25,7 @@ pub enum Line {
 }
 
 /// What the rows of a list know about the page that shows them.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Place {
     /// The library playlist the songs are in, when it can be edited: the menu of a row offers
     /// to remove its song from that playlist.

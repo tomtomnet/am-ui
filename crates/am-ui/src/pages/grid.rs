@@ -4,7 +4,7 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use gtk::{gio, glib};
+use gtk::gio;
 
 use crate::app::ctx;
 use crate::library::{Kind, item_of};
@@ -90,7 +90,7 @@ pub fn with_states(kind: Kind, content: &impl IsA<gtk::Widget>, empty_title: &st
     let update = move |stack: &gtk::Stack| {
         let library = ctx().library.clone();
         let count = library.store(kind).n_items();
-        let problem = library.problem.borrow().clone();
+        let problem = library.problem();
         let name = if count > 0 {
             "content"
         } else if ctx().account.state() == crate::account::AccountState::SignedOut {
@@ -115,15 +115,12 @@ pub fn with_states(kind: Kind, content: &impl IsA<gtk::Widget>, empty_title: &st
     });
     ctx().account.changed.connect(&stack, move |stack, _| update(stack));
     let weak = stack.downgrade();
-    ctx().library.store(kind).connect_items_changed(move |store, _, _, _| {
-        // the first rows arrive while the list is still loading
-        if let Some(stack) = weak.upgrade()
-            && store.n_items() > 0
-        {
-            stack.set_visible_child_name("content");
+    ctx().library.store(kind).connect_items_changed(move |_, _, _, _| {
+        // the first rows arrive while the list is still loading, the last one may go
+        if let Some(stack) = weak.upgrade() {
+            update(&stack);
         }
     });
-    let _ = glib::MainContext::default();
     stack
 }
 

@@ -349,7 +349,11 @@ follows: `research/engine-api.md` and the notes of 2026-11-14 summarised in
 - Song menus: play next or later, favourite, add to library or a playlist, Go to Album, Go to
   Artist, Go to Song (its place in the library's Songs), remove from a playlist.
 - The library's lists are kept on disk (`var/state/library/`) and shown at once at start-up while
-  fresh ones load.
+  fresh ones load. A list that is fetched again changes only where it differs, so pages keep their
+  place.
+- Apple applies changes of the library some time after accepting them. A playlist created, renamed
+  or deleted, a song added or removed shows at once and counts over Apple's answers for ten minutes
+  (`edits.rs`).
 - Pages fade in when opened or closed; switching sections is instant.
 - Rows, cards and lists measure themselves in their fonts, so everything follows the desktop's text
   size and display scale (the "Text size" rule in `crates/am-ui/README.md`).

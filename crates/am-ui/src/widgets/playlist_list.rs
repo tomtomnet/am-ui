@@ -85,6 +85,14 @@ pub fn build() -> PlaylistList {
             ctx().nav.go(dest_of(&playlist));
         }
     });
+    // the selection says where the window is and nothing else: when the row with the keyboard
+    // focus goes away (its playlist was deleted or renamed), the list would select the one that
+    // gets the focus
+    list.connect_selected_rows_changed(|list| {
+        if let Some(dest) = ctx().nav.current() {
+            mark(list, &dest);
+        }
+    });
 
     let widget = gtk::Box::new(gtk::Orientation::Vertical, 0);
     widget.append(&header);
@@ -92,19 +100,24 @@ pub fn build() -> PlaylistList {
     PlaylistList { widget, list }
 }
 
+/// Select the playlist of `dest` in `list` (or none of them).
+fn mark(list: &gtk::ListBox, dest: &Dest) {
+    let store = ctx().library.playlists.clone();
+    let wanted = match dest {
+        Dest::Playlist(target) => (0..store.n_items()).find(|i| {
+            matches!(store.item(*i).as_ref().and_then(item_of), Some(Item::Playlist(playlist)) if playlist.library_id.is_some() && playlist.library_id == target.library_id)
+        }),
+        _ => None,
+    };
+    match wanted.and_then(|index| list.row_at_index(index as i32)) {
+        Some(row) => list.select_row(Some(&row)),
+        None => list.unselect_all(),
+    }
+}
+
 impl PlaylistList {
     /// Mark the playlist of `dest` as the current page (or none of them).
     pub fn show(&self, dest: &Dest) {
-        let store = ctx().library.playlists.clone();
-        let wanted = match dest {
-            Dest::Playlist(target) => (0..store.n_items()).find(|i| {
-                matches!(store.item(*i).as_ref().and_then(item_of), Some(Item::Playlist(playlist)) if playlist.library_id.is_some() && playlist.library_id == target.library_id)
-            }),
-            _ => None,
-        };
-        match wanted.and_then(|index| self.list.row_at_index(index as i32)) {
-            Some(row) => self.list.select_row(Some(&row)),
-            None => self.list.unselect_all(),
-        }
+        mark(&self.list, dest);
     }
 }

@@ -6,20 +6,26 @@
 //! songs and the number of all of them; the other pages are fetched several at a time
 //! (`library::fetch_all`) and their rows are added in order, so the page is complete after about
 //! the time of one more request.
+//!
+//! The page is built once. What changes later, a song removed, a new answer of the service, is
+//! changed in it (only the rows that differ, `diff::update_store`): the list keeps its place and
+//! the page where it is scrolled to. What the service shows is what it answered, with what was
+//! changed here and it does not show yet over it (`edits`).
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use adw::prelude::*;
-use amui::types::{Page, Track};
+use amui::types::{Artwork, Page, Playlist, Track};
 use gtk::{gio, glib};
 
 use crate::actions;
 use crate::app::ctx;
 use crate::data::{Collection, Item, Music, Problem, Ref, Res};
+use crate::diff::update_store;
 use crate::library::{self, boxed, item_of, track_of};
 use crate::nav::Dest;
 use crate::pages::detail::{self, Cache, Frame};
@@ -129,10 +135,36 @@ fn fetch_from(
     });
 }
 
+/// The header of a page and the parts of it that change on their own.
+struct Header {
+    hero: Hero,
+    /// The widget that names the page.
+    title: gtk::Label,
+    cover: Cover,
+    /// What the cover shows.
+    artworks: Vec<Artwork>,
+    /// The small line ("500 SONGS") and the row it is in.
+    words: gtk::Label,
+    meta: gtk::Box,
+    play: gtk::Button,
+    shuffle: gtk::Button,
+}
+
 /// What the content of a page keeps at hand after it was built.
 struct Parts {
+    column: gtk::Box,
+    header: Header,
+    /// The album or playlist the header was built for.
+    item: Item,
     /// The rows of the list of songs.
     store: gio::ListStore,
+    /// What stands in place of the list while there are no songs.
+    note: gtk::Label,
+    list: Embedded,
+    /// What the rows know about the page (they were made for it).
+    place: Place,
+    /// The list has headings for its discs.
+    discs: bool,
     footer: gtk::Label,
 }
 
@@ -143,7 +175,10 @@ struct View {
     target: Ref,
     page: glib::WeakRef<adw::NavigationPage>,
     frame: Frame,
-    /// What is shown; while a long playlist loads, the playlist and its first songs.
+    /// What the service answered last.
+    answer: RefCell<Option<Rc<Collection>>>,
+    /// What is shown: that answer with what was changed here over it; while a long playlist
+    /// loads, the playlist and its first songs.
     shown: RefCell<Option<Rc<Collection>>>,
     /// Every song of what is shown is there.
     complete: Cell<bool>,
@@ -175,6 +210,25 @@ fn hook() {
     ctx.playlist_deleted.connect_forever(move |id| CACHE.with(|cache| cache.borrow_mut().forget(|dest| is(dest, id))));
 }
 
+/// A playlist that was just created: its page has something to show at once, whatever the
+/// service knows of it yet, and asks for the rest when it opens.
+pub fn remember_created(playlist: &Playlist) {
+    let dest = Dest::Playlist(actions::reference(&playlist.catalog_id, &playlist.library_id));
+    let collection =
+        Collection { item: Item::Playlist(playlist.clone()), tracks: Vec::new(), next_offset: None, total: Some(0) };
+    CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        cache.put(&dest, Rc::new(collection), Instant::now());
+        cache.expire(|shown| *shown == dest);
+    });
+}
+
+/// The songs the service last gave for the library playlist `id`, as far as it was asked.
+pub fn known_songs(id: &str) -> Vec<Track> {
+    let wanted = |dest: &Dest| matches!(dest, Dest::Playlist(target) if target.library_id.as_deref() == Some(id));
+    CACHE.with(|cache| cache.borrow().find(wanted)).map_or_else(Vec::new, |collection| collection.tracks.clone())
+}
+
 /// The page of the album or playlist `target` (the destination `dest`).
 pub fn page(dest: &Dest, kind: Kind, target: &Ref) -> adw::NavigationPage {
     hook();
@@ -188,6 +242,7 @@ pub fn page(dest: &Dest, kind: Kind, target: &Ref) -> adw::NavigationPage {
         target: target.clone(),
         page: shell.page.downgrade(),
         frame,
+        answer: RefCell::default(),
         shown: RefCell::default(),
         complete: Cell::new(false),
         parts: RefCell::default(),
@@ -215,6 +270,7 @@ pub fn page(dest: &Dest, kind: Kind, target: &Ref) -> adw::NavigationPage {
         if let Some(view) = weak.upgrade()
             && view.is_playlist(id)
         {
+            view.edited();
             view.outdated(false);
         }
     });
@@ -269,6 +325,14 @@ impl View {
         }
     }
 
+    /// What was changed here (a song removed, a new name) shows at once, on screen or not.
+    fn edited(self: &Rc<Self>) {
+        let answer = self.answer.borrow().clone();
+        if let Some(answer) = answer.filter(|_| self.complete.get()) {
+            self.show(answer, true);
+        }
+    }
+
     /// What is shown may have changed: ask again now if the page is on screen, else when it is
     /// seen next. `asked`: the user wants to know if that fails.
     fn outdated(self: &Rc<Self>, asked: bool) {
@@ -291,8 +355,8 @@ impl View {
         }
     }
 
-    /// Ask the service. While the page shows something that happens quietly: the content is
-    /// replaced only if the answer differs, and a failure is mentioned only when the user `asked`.
+    /// Ask the service. While the page shows something that happens quietly: what differs in the
+    /// answer changes on the page, and a failure is mentioned only when the user `asked`.
     fn fetch(self: &Rc<Self>, asked: bool) {
         let generation = self.generation.get() + 1;
         self.generation.set(generation);
@@ -329,30 +393,19 @@ impl View {
                 let Some(view) = current(&done) else { return };
                 view.busy.set(false);
                 match result {
-                    Ok(collection) => view.arrived(Rc::new(collection), quiet),
+                    Ok(collection) => view.arrived(Rc::new(collection)),
                     Err(problem) => view.failed(&problem, asked),
                 }
             },
         );
     }
 
-    /// Every song is here. `quiet`: fetched behind what the page shows.
-    fn arrived(self: &Rc<Self>, collection: Rc<Collection>, quiet: bool) {
+    /// Every song is here.
+    fn arrived(self: &Rc<Self>, collection: Rc<Collection>) {
         let now = Instant::now();
         self.fetched.set(Some(now));
         CACHE.with(|cache| cache.borrow_mut().put(&self.dest, collection.clone(), now));
-        let shown = self.shown.borrow().clone();
-        match shown {
-            // the rows of a long playlist came page by page: what is shown is complete now
-            Some(_) if !quiet && !self.complete.get() => {
-                self.shown.replace(Some(collection));
-                self.complete.set(true);
-                self.completed();
-            }
-            // nothing has changed
-            Some(shown) if self.complete.get() && *shown == *collection => {}
-            _ => self.show(collection, true),
-        }
+        self.show(collection, true);
     }
 
     fn failed(&self, problem: &Problem, asked: bool) {
@@ -372,19 +425,59 @@ impl View {
         }
     }
 
-    /// Put `collection` on the page, in place of what was there.
-    fn show(self: &Rc<Self>, collection: Rc<Collection>, complete: bool) {
-        let (column, title, parts) = self.build(&collection, complete);
-        self.frame.show(&column, &title);
+    /// The album or playlist as it is to be shown: `answer` with what was changed here over it.
+    fn with_edits(&self, answer: &Collection) -> Collection {
+        match self.kind {
+            Kind::Playlist => ctx().library.with_edits(answer),
+            Kind::Album => answer.clone(),
+        }
+    }
+
+    /// Show what the service answered: the page is built the first time and changed after that,
+    /// as far as it was made for what is shown now.
+    fn show(self: &Rc<Self>, answer: Rc<Collection>, complete: bool) {
+        let collection = Rc::new(self.with_edits(&answer));
+        self.answer.replace(Some(answer));
+        let (place, discs) = (self.place(&collection), self.has_discs(&collection));
+        let fits = self.parts.borrow().as_ref().is_some_and(|parts| parts.place == place && parts.discs == discs);
+        if fits {
+            self.update(&collection, complete);
+        } else {
+            let (column, title, parts) = self.build(&collection, complete, place, discs);
+            self.frame.show(&column, &title);
+            self.parts.replace(Some(parts));
+        }
         if let Some(page) = self.page.upgrade() {
             page.set_title(collection.item.title());
         }
         self.shown.replace(Some(collection));
-        self.parts.replace(Some(parts));
         self.complete.set(complete);
         if complete {
             self.completed();
         }
+    }
+
+    /// Bring what the page shows up to `collection`: only what differs changes, and the list and
+    /// the page stay where they are.
+    fn update(self: &Rc<Self>, collection: &Collection, complete: bool) {
+        let mut parts = self.parts.borrow_mut();
+        let Some(parts) = parts.as_mut() else { return };
+        let rows: Vec<glib::BoxedAnyObject> = collection.tracks.iter().cloned().map(boxed).collect();
+        update_store(&parts.store, &rows);
+        parts.note.set_visible(collection.tracks.is_empty() && complete);
+        parts.list.set_visible(!collection.tracks.is_empty());
+        if parts.item != collection.item {
+            // another name, another description: a new header, in the place of the old one
+            let header = self.header(collection);
+            parts.column.remove(&parts.header.hero);
+            parts.column.prepend(&header.hero);
+            self.frame.set_title(&header.title);
+            parts.header = header;
+            parts.item = collection.item.clone();
+        } else {
+            parts.header.follow(collection);
+        }
+        parts.footer.set_text(&footer_text(collection, complete));
     }
 
     /// What is shown has all its songs: the footer can say how long they are, and what waited
@@ -445,10 +538,7 @@ impl View {
                             view.fetched.set(None);
                             CACHE.with(|cache| cache.borrow_mut().expire(|dest| *dest == view.dest));
                         }
-                        glib::timeout_add_local_once(Duration::from_millis(1500), || {
-                            let ctx = crate::app::ctx();
-                            ctx.library.reload(&ctx.music);
-                        });
+                        actions::reload_library_soon();
                     }
                     Err(problem) => {
                         ctx.toast.emit(&problem.message);
@@ -461,53 +551,79 @@ impl View {
         );
     }
 
+    /// What the rows of the page know about it.
+    fn place(&self, collection: &Collection) -> Place {
+        match &collection.item {
+            Item::Playlist(playlist) => Place {
+                playlist: playlist.library_id.clone().filter(|_| playlist.can_edit),
+                line: Line::Style,
+                songs_page: false,
+            },
+            Item::Album(album) => {
+                Place { playlist: None, line: Line::ArtistUnless(album.artist.clone()), songs_page: false }
+            }
+            _ => Place::default(),
+        }
+    }
+
+    /// Whether the list of the page needs a heading for every disc.
+    fn has_discs(&self, collection: &Collection) -> bool {
+        self.kind == Kind::Album && several_discs(&collection.tracks)
+    }
+
     /// The column of the page: header, songs, footer. Also the widget that names the page.
-    fn build(self: &Rc<Self>, collection: &Collection, complete: bool) -> (gtk::Box, gtk::Widget, Parts) {
+    fn build(
+        self: &Rc<Self>,
+        collection: &Collection,
+        complete: bool,
+        place: Place,
+        discs: bool,
+    ) -> (gtk::Box, gtk::Widget, Parts) {
         let column = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let (hero, title) = self.header(collection);
-        column.append(&hero);
+        let header = self.header(collection);
+        column.append(&header.hero);
 
         let store = gio::ListStore::new::<glib::BoxedAnyObject>();
         let rows: Vec<glib::BoxedAnyObject> = collection.tracks.iter().cloned().map(boxed).collect();
         store.extend_from_slice(&rows);
-        if collection.tracks.is_empty() && complete {
-            let note = gtk::Label::new(Some(match self.kind {
-                Kind::Album => "This album has no songs.",
-                Kind::Playlist => "This playlist has no songs yet.",
-            }));
-            note.set_xalign(0.0);
-            note.add_css_class("page-note");
-            column.append(&note);
-        } else {
-            column.append(&Embedded::new(&self.songs(collection, &store)));
-        }
+        let note = gtk::Label::new(Some(match self.kind {
+            Kind::Album => "This album has no songs.",
+            Kind::Playlist => "This playlist has no songs yet.",
+        }));
+        note.set_xalign(0.0);
+        note.add_css_class("page-note");
+        note.set_visible(collection.tracks.is_empty() && complete);
+        column.append(&note);
+        let list = Embedded::new(&self.songs(collection, &store, place.clone(), discs));
+        list.set_visible(!collection.tracks.is_empty());
+        column.append(&list);
 
         let footer = gtk::Label::new(Some(&footer_text(collection, complete)));
         footer.set_xalign(0.0);
         footer.set_wrap(true);
         footer.add_css_class("page-footer");
         column.append(&footer);
-        (column, title.upcast(), Parts { store, footer })
+        let title = header.title.clone().upcast();
+        let parts = Parts {
+            column: column.clone(),
+            header,
+            item: collection.item.clone(),
+            store,
+            note,
+            list,
+            place,
+            discs,
+            footer,
+        };
+        (column, title, parts)
     }
 
     /// The list of the songs in `store`, with a heading for every disc when there are several.
-    fn songs(&self, collection: &Collection, store: &gio::ListStore) -> gtk::ListView {
-        let (style, place) = match &collection.item {
-            Item::Playlist(playlist) => (
-                RowStyle::LIST,
-                Place {
-                    playlist: playlist.library_id.clone().filter(|_| playlist.can_edit),
-                    line: Line::Style,
-                    songs_page: false,
-                },
-            ),
-            Item::Album(album) => (
-                RowStyle::ALBUM,
-                Place { playlist: None, line: Line::ArtistUnless(album.artist.clone()), songs_page: false },
-            ),
-            _ => (RowStyle::LIST, Place::default()),
+    fn songs(&self, collection: &Collection, store: &gio::ListStore, place: Place, discs: bool) -> gtk::ListView {
+        let style = match &collection.item {
+            Item::Album(_) => RowStyle::ALBUM,
+            _ => RowStyle::LIST,
         };
-        let discs = self.kind == Kind::Album && several_discs(&collection.tracks);
         let list = if discs {
             // a section for every disc: the songs come in that order already
             let sections = gtk::SortListModel::new(Some(store.clone()), None::<gtk::Sorter>);
@@ -526,22 +642,15 @@ impl View {
     }
 
     /// The header: artwork, name, who it is by, what it is, and the buttons.
-    fn header(self: &Rc<Self>, collection: &Collection) -> (Hero, gtk::Label) {
+    fn header(self: &Rc<Self>, collection: &Collection) -> Header {
         let item = &collection.item;
         let cover = Cover::new(PICTURE.0);
-        match item {
-            Item::Playlist(playlist) => {
-                cover.set_blank(Blank::Icon("am-audio-x-generic-symbolic"));
-                match &playlist.artwork {
-                    Some(artwork) => cover.set_artworks(std::slice::from_ref(artwork)),
-                    None => cover.set_artworks(&mosaic(collection.tracks.iter().map(|track| track.artwork.as_ref()))),
-                }
-            }
-            _ => {
-                cover.set_blank(Blank::Icon("am-album-symbolic"));
-                cover.set_artworks(item.artwork().map(std::slice::from_ref).unwrap_or_default());
-            }
-        }
+        cover.set_blank(Blank::Icon(match item {
+            Item::Playlist(_) => "am-audio-x-generic-symbolic",
+            _ => "am-album-symbolic",
+        }));
+        let artworks = artworks_of(collection);
+        cover.set_artworks(&artworks);
 
         let text = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let title = gtk::Label::new(Some(item.title()));
@@ -586,22 +695,21 @@ impl View {
 
         let meta = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         meta.add_css_class("hero-meta");
-        let (words, formats) = meta_of(collection);
-        if !words.is_empty() {
-            let label = gtk::Label::new(Some(&words));
-            label.set_xalign(0.0);
-            label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-            meta.append(&label);
-        }
+        let (line, formats) = meta_of(collection);
+        let words = gtk::Label::new(Some(&line));
+        words.set_xalign(0.0);
+        words.set_ellipsize(gtk::pango::EllipsizeMode::End);
+        words.set_visible(!line.is_empty());
+        meta.append(&words);
+        let has_formats = !formats.is_empty();
         for format in formats {
             let badge = gtk::Label::new(Some(format));
             badge.add_css_class("format-badge");
             badge.set_valign(gtk::Align::Center);
             meta.append(&badge);
         }
-        if meta.first_child().is_some() {
-            text.append(&meta);
-        }
+        meta.set_visible(!line.is_empty() || has_formats);
+        text.append(&meta);
 
         if let Item::Playlist(playlist) = item
             && !playlist.description.trim().is_empty()
@@ -615,20 +723,21 @@ impl View {
         let filler = gtk::Box::new(gtk::Orientation::Vertical, 0);
         filler.set_vexpand(true);
         text.append(&filler);
-        text.append(&self.buttons(collection));
-        (Hero::new(&cover, &text, PICTURE.0, PICTURE.1), title)
+        let (buttons, play, shuffle) = self.buttons(collection);
+        text.append(&buttons);
+        let hero = Hero::new(&cover, &text, PICTURE.0, PICTURE.1);
+        Header { hero, title, cover, artworks, words, meta, play, shuffle }
     }
 
     /// Play and Shuffle; at the end of the row "Add to Library" (or the mark of what is in the
-    /// library) and "More".
-    fn buttons(self: &Rc<Self>, collection: &Collection) -> gtk::Box {
+    /// library) and "More". With the buttons Play and Shuffle.
+    fn buttons(self: &Rc<Self>, collection: &Collection) -> (gtk::Box, gtk::Button, gtk::Button) {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
         row.add_css_class("hero-actions");
         let play = detail::pill("am-media-playback-start-symbolic", "Play");
         let shuffle = detail::pill("am-media-playlist-shuffle-symbolic", "Shuffle");
-        let has_songs = !collection.tracks.is_empty() || collection.next_offset.is_some();
         for (button, shuffled) in [(&play, false), (&shuffle, true)] {
-            button.set_sensitive(has_songs);
+            button.set_sensitive(has_songs(collection));
             let weak = Rc::downgrade(self);
             button.connect_clicked(move |_| {
                 if let Some(view) = weak.upgrade() {
@@ -685,8 +794,42 @@ impl View {
         let item = item.clone();
         more.connect_clicked(move |button| crate::menus::item_menu(&item, button, 0.0, button.height() as f64 + 4.0));
         row.append(&more);
-        row
+        (row, play, shuffle)
     }
+}
+
+impl Header {
+    /// Show what changes with the songs: their number, the mosaic of a playlist without artwork
+    /// of its own, whether there is anything to play.
+    fn follow(&mut self, collection: &Collection) {
+        let (line, formats) = meta_of(collection);
+        self.words.set_text(&line);
+        self.words.set_visible(!line.is_empty());
+        self.meta.set_visible(!line.is_empty() || !formats.is_empty());
+        let artworks = artworks_of(collection);
+        if artworks != self.artworks {
+            self.cover.set_artworks(&artworks);
+            self.artworks = artworks;
+        }
+        self.play.set_sensitive(has_songs(collection));
+        self.shuffle.set_sensitive(has_songs(collection));
+    }
+}
+
+/// What the cover of `collection` shows: its artwork, or for a playlist without one those of its
+/// songs.
+fn artworks_of(collection: &Collection) -> Vec<Artwork> {
+    match &collection.item {
+        Item::Playlist(Playlist { artwork: None, .. }) => {
+            mosaic(collection.tracks.iter().map(|track| track.artwork.as_ref()))
+        }
+        item => item.artwork().cloned().into_iter().collect(),
+    }
+}
+
+/// Whether there is anything to play (the songs of a long playlist may be on their way).
+fn has_songs(collection: &Collection) -> bool {
+    !collection.tracks.is_empty() || collection.next_offset.is_some()
 }
 
 /// Whether the library's list of albums or playlists has the one with this catalog id.
@@ -785,7 +928,8 @@ fn footer_text(collection: &Collection, complete: bool) -> String {
 mod tests {
     use super::*;
     use crate::demo::DemoMusic;
-    use amui::types::{Album, Playlist};
+    use amui::types::Album;
+    use std::time::Duration;
 
     fn demo() -> Arc<dyn Music> {
         Arc::new(DemoMusic::new(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")))

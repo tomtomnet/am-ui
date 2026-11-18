@@ -205,6 +205,10 @@ impl Music for EngineMusic {
         self.api.clear_cache();
     }
 
+    fn forget_library(&self) {
+        self.api.invalidate(&[]);
+    }
+
     fn catalog_region(&self) -> Res<Region> {
         let account = self.told(self.api.storefront())?;
         Ok(Region { account, chosen: self.api.catalog_storefront_override() })

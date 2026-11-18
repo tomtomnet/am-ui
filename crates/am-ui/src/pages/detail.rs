@@ -57,6 +57,11 @@ impl<T> Cache<T> {
         }
     }
 
+    /// The copy kept for a destination that `wanted` names, if there is one.
+    pub fn find(&self, wanted: impl Fn(&Dest) -> bool) -> Option<Rc<T>> {
+        self.entries.iter().find(|(key, _, _)| wanted(key)).map(|(_, value, _)| value.clone())
+    }
+
     /// The copies of the destinations `old` names are to be fetched again when they are shown.
     pub fn expire(&mut self, old: impl Fn(&Dest) -> bool) {
         for (key, _, fetched) in &mut self.entries {
@@ -163,11 +168,35 @@ impl Frame {
         self.title.borrow().set(Some(title.upcast_ref()));
         // new content starts at its top, where it names itself; content that replaces what was
         // shown stays where the page is scrolled to, and so does the header bar
+        let scrolled_to = self.has_content().then(|| self.adjustment().value()).filter(|value| *value > 0.0);
         if !self.has_content() {
             self.header.set_show_title(false);
         }
         self.viewport.set_child(Some(column));
         self.stack.set_visible_child_name("content");
+        if let Some(value) = scrolled_to {
+            self.scroll_back_to(value);
+        }
+    }
+
+    /// Go back to `value` as soon as the new content is tall enough for it (it has no height
+    /// before its first layout).
+    fn scroll_back_to(&self, value: f64) {
+        let adjustment = self.adjustment();
+        let frames = Cell::new(0);
+        self.scroller.add_tick_callback(move |_, _| {
+            frames.set(frames.get() + 1);
+            if adjustment.upper() - adjustment.page_size() >= value {
+                adjustment.set_value(value);
+                return glib::ControlFlow::Break;
+            }
+            if frames.get() < 60 { glib::ControlFlow::Continue } else { glib::ControlFlow::Break }
+        });
+    }
+
+    /// Another widget in the content names the page from now on.
+    pub fn set_title(&self, title: &impl IsA<gtk::Widget>) {
+        self.title.borrow().set(Some(title.upcast_ref()));
     }
 
     /// Nothing to show yet: a spinner once the wait has lasted a moment.

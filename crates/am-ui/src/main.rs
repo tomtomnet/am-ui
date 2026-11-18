@@ -34,6 +34,8 @@ mod data;
 mod demo;
 mod demo_playback;
 mod dialogs;
+mod diff;
+mod edits;
 mod engine;
 mod equalizer;
 mod favorites;
