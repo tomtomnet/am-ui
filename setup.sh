@@ -101,6 +101,8 @@ package_for() {
         fedora:c++) echo gcc-c++ ;;                debian:c++) echo g++ ;;
         arch:c++) echo gcc ;;                      suse:c++) echo gcc-c++ ;;
         *:patch) echo patch ;;                     *:unzip) echo unzip ;;
+        fedora:openssl) echo openssl3-libs ;;      debian:openssl) echo libssl3t64 ;;
+        suse:openssl) echo libopenssl3 ;;          *:openssl) echo openssl ;;
         *) echo "$1" ;;
     esac
 }
@@ -286,7 +288,7 @@ else
         did "dotnet SDK $(AMUI_DOTNET="$dotnet" bash -c "source '$here/tools/cavern-lab/build-env.sh' && \"\$dotnet\" --version" 2>/dev/null || echo installed) (var/toolchains/dotnet)"
     else
         tail -5 -- "$var/build/dotnet-install.log" 2>/dev/null | sed 's/^/           /'
-        bad ".NET SDK: the download failed (log: var/build/dotnet-install.log). Installing dotnet-sdk-8.0 from your distribution works too."
+        bad ".NET SDK: the download failed (log: var/build/dotnet-install.log). A .NET SDK 8 or later from your distribution works too."
         dotnet=""
     fi
 fi
@@ -300,6 +302,9 @@ elif "$here/tools/cavern-lab/build.sh" >"$var/build/setup-renderer.log" 2>&1; th
     ok "built (tools/cavern-lab/probe/bin/Release/net8.0/CavernProbe.dll)"
 else
     tail -12 -- "$var/build/setup-renderer.log" | sed 's/^/           /'
+    if grep -q 'No usable version of libssl' "$var/build/cavern-lab-build.log" 2>/dev/null; then
+        printf '           .NET found no OpenSSL it can use: %s\n' "$(install_command "$(package_for openssl)")"
+    fi
     bad "renderer: the build failed (log: var/build/cavern-lab-build.log)"
 fi
 

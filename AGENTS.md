@@ -172,7 +172,8 @@ Steps, each of which looks first and does only what is missing:
    crate downloads go to `var/build/cargo-home` unless `CARGO_HOME` is set.
 4. **.NET SDK 8+** from `AMUI_DOTNET`, the PATH or an existing workspace, else a private one in
    `var/toolchains/dotnet`.
-5. **The renderer**: `tools/cavern-lab/build.sh`.
+5. **The renderer**: `tools/cavern-lab/build.sh`. .NET 8 looks for OpenSSL 3 or older; where only
+   OpenSSL 4 is installed, `build-env.sh` tells it to use that one (`CLR_OPENSSL_VERSION_OVERRIDE`).
 6. **The DRM helper**: `tools/drm-helper/build.sh` fetches a pinned commit of Kyant0/AMDL, checks
    the SHA-256 of the files it uses, applies `patches/` to a copy and builds. A fingerprint of its
    inputs decides whether it is built again (`build.sh --check`: 0 current, 1 absent, 2 stale).

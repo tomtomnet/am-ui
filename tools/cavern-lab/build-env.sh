@@ -27,11 +27,18 @@ export DOTNET_CLI_HOME="$amui_var/build/dotnet-home" NUGET_PACKAGES="$amui_var/b
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 DOTNET_NOLOGO=1 DOTNET_GENERATE_ASPNET_CERTIFICATE=0
 # The probe targets net8.0; a machine that only has a newer runtime runs it on that one.
 export DOTNET_ROLL_FORWARD="${DOTNET_ROLL_FORWARD:-Major}"
+_libraries=$(ldconfig -p 2>/dev/null || /sbin/ldconfig -p 2>/dev/null || true)
 # .NET refuses to start without ICU unless told to do without; the probe parses and prints numbers
 # with the invariant culture only.
-if [ -z "${DOTNET_SYSTEM_GLOBALIZATION_INVARIANT:-}" ] && \
-   ! { ldconfig -p 2>/dev/null || /sbin/ldconfig -p 2>/dev/null; } | grep -q 'libicuuc\.so'; then
+if [ -z "${DOTNET_SYSTEM_GLOBALIZATION_INVARIANT:-}" ] && ! grep -q 'libicuuc\.so' <<<"$_libraries"; then
     export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 fi
+# .NET 8 looks for OpenSSL 3 and older by name and aborts without one (the build hashes with it). A
+# system that has moved on to OpenSSL 4 serves it just as well once .NET is told to take that.
+if [ -z "${CLR_OPENSSL_VERSION_OVERRIDE:-}" ] && grep -q 'libssl\.so\.4 ' <<<"$_libraries" && \
+   ! grep -q -E 'libssl\.so\.(3|1\.1|1\.0\.[02]|10) ' <<<"$_libraries"; then
+    export CLR_OPENSSL_VERSION_OVERRIDE=4
+fi
+unset _libraries
 export TMPDIR="$amui_var/build/scratch" XDG_CONFIG_HOME="$amui_var/build/cavern-config"
 mkdir -p "$DOTNET_CLI_HOME" "$NUGET_PACKAGES" "$TMPDIR" "$XDG_CONFIG_HOME"

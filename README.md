@@ -34,7 +34,7 @@ it on your distribution: run it, then `./setup.sh` again. On Fedora, all it can 
 
 ```sh
 sudo dnf install gtk4-devel libadwaita-devel pulseaudio-libs-devel pkgconf-pkg-config gcc gcc-c++ \
-    cargo dotnet-sdk-8.0 ffmpeg-free git curl patch python3 cmake ninja-build unzip
+    cargo ffmpeg-free git curl patch python3 cmake ninja-build unzip
 ```
 
 To update later: `git pull && ./setup.sh`.
